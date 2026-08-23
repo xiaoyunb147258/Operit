@@ -18,7 +18,23 @@
   <img src="docs/assets/readme/operit-ai-banner-zh-cn.webp" width="100%" alt="Operit AI - Android 史上最强大、功能最完整、持续迭代最久的开源 AI Agent">
 </div>
 
-## 🚀 Operit 2：Operit 的跨平台后续版本
+#<!--
+  ATTRIBUTION / 出处声明
+  本仓库 (qinghai-lipipeng/Operit) 是以下原项目的复刻 (fork)：
+    原项目：Operit
+    原作者：AAswordman
+    原地址：https://github.com/AAswordman/Operit
+    许可证：GNU LGPL v3 (LGPL-3.0-only)，详见本仓库 LICENSE 文件。
+  本复刻基于原项目二次开发，保留原许可条款。详见 NOTICE 文件。
+-->
+
+## 📋 出处声明 (Attribution)
+
+本仓库是原项目 **[Operit](https://github.com/AAswordman/Operit)**（作者：AAswordman）的复刻版本，基于 [LGPL-3.0](LICENSE) 许可证进行二次开发。原项目版权归原作者所有，详细信息请参阅本仓库的 [NOTICE](NOTICE) 与 [LICENSE](LICENSE) 文件。
+
+---
+
+# 🚀 Operit 2：Operit 的跨平台后续版本
 
 本仓库是 Operit 的 Android 版。Operit 2 是独立的第二代实现，以 Rust 共享运行时、Flutter 客户端和 `operit2` CLI/TUI 为核心，目前包含 Android、iOS、Windows、macOS、Linux 与 Web 的实现或构建路径，并持续推进 OpenHarmony 适配。想关注跨平台版本，请访问 [Operit 2](https://github.com/AAswordman/Operit2)。
 
