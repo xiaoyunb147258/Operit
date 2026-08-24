@@ -44,38 +44,6 @@ internal object StructuredToolCallBridge {
         return buildStructuredMessages(history, preserveThinkInHistory).toString()
     }
 
-    fun buildMnnChatHistory(
-        history: List<PromptTurn>,
-        preserveThinkInHistory: Boolean
-    ): List<Pair<String, String>> {
-        val messages = buildStructuredMessages(history, preserveThinkInHistory)
-        val compiledHistory = ArrayList<Pair<String, String>>(messages.length())
-        for (index in 0 until messages.length()) {
-            val message = messages.optJSONObject(index) ?: continue
-            val role = message.optString("role", "").trim()
-            val contentValue = message.opt("content")
-            val content =
-                when (contentValue) {
-                    null,
-                    JSONObject.NULL -> ""
-                    is String -> contentValue
-                    else -> contentValue.toString()
-                }
-            val isPlainRoleContentMessage =
-                role.isNotEmpty() &&
-                    message.length() == 2 &&
-                    message.has("role") &&
-                    message.has("content") &&
-                    (contentValue == null || contentValue == JSONObject.NULL || contentValue is String)
-            if (isPlainRoleContentMessage) {
-                compiledHistory.add(role to content)
-            } else {
-                compiledHistory.add("json" to message.toString())
-            }
-        }
-        return compiledHistory
-    }
-
     fun compileHistoryForProvider(
         history: List<PromptTurn>,
         useToolCall: Boolean

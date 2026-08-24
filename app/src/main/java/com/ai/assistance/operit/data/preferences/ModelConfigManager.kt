@@ -324,16 +324,14 @@ class ModelConfigManager(private val context: Context) {
         }
     }
 
-    // 更新模型配置 - 包含API提供商类型和MNN配置
+    // 更新模型配置 - 包含API提供商类型
     suspend fun updateModelConfig(
             configId: String,
             apiKey: String,
             apiEndpoint: String,
             modelName: String,
             apiProviderType: com.ai.assistance.operit.data.model.ApiProviderType,
-            apiProviderTypeId: String = apiProviderType.name,
-            mnnForwardType: Int,
-            mnnThreadCount: Int
+            apiProviderTypeId: String = apiProviderType.name
     ): ModelConfigData {
         return updateConfigInternal(configId) {
             it.copy(
@@ -341,9 +339,7 @@ class ModelConfigManager(private val context: Context) {
                     apiEndpoint = apiEndpoint,
                     modelName = modelName,
                     apiProviderType = apiProviderType,
-                    apiProviderTypeId = apiProviderTypeId,
-                    mnnForwardType = mnnForwardType,
-                    mnnThreadCount = mnnThreadCount
+                    apiProviderTypeId = apiProviderTypeId
             )
         }
     }
@@ -355,11 +351,6 @@ class ModelConfigManager(private val context: Context) {
             modelName: String,
             apiProviderType: ApiProviderType,
             apiProviderTypeId: String = apiProviderType.name,
-            mnnForwardType: Int,
-            mnnThreadCount: Int,
-            llamaThreadCount: Int,
-            llamaContextSize: Int,
-            llamaGpuLayers: Int,
             enableDirectImageProcessing: Boolean,
             enableDirectAudioProcessing: Boolean,
             enableDirectVideoProcessing: Boolean,
@@ -374,11 +365,6 @@ class ModelConfigManager(private val context: Context) {
                     modelName = modelName,
                     apiProviderType = apiProviderType,
                     apiProviderTypeId = apiProviderTypeId,
-                    mnnForwardType = mnnForwardType,
-                    mnnThreadCount = mnnThreadCount,
-                    llamaThreadCount = llamaThreadCount.coerceAtLeast(1),
-                    llamaContextSize = llamaContextSize.coerceAtLeast(1),
-                    llamaGpuLayers = llamaGpuLayers.coerceAtLeast(0),
                     enableDirectImageProcessing = enableDirectImageProcessing,
                     enableDirectAudioProcessing = enableDirectAudioProcessing,
                     enableDirectVideoProcessing = enableDirectVideoProcessing,

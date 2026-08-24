@@ -577,20 +577,10 @@ kotlin {
 
 dependencies {
     implementation("com.github.jelmerk:hnswlib-core:1.2.1")
-    implementation(project(":dragonbones"))
     implementation(project(":terminal"))
-    implementation(project(":mnn"))
-    implementation(project(":llama"))
-    implementation(project(":mmd"))
-    implementation(project(":fbx"))
     implementation(project(":showerclient"))
     implementation(project(":quickjs"))
 
-    // glTF runtime rendering (Filament)
-    implementation("com.google.android.filament:filament-android:1.69.2")
-    implementation("com.google.android.filament:gltfio-android:1.69.2")
-    implementation("com.google.android.filament:filament-utils-android:1.69.2")
-    implementation(libs.androidx.ui.graphics.android)
     // The only vendored artifact is the custom FFmpegKit AAR.
     implementation(files("libs/ffmpeg-kit-local.aar"))
     implementation("com.arthenica:smart-exception-common:0.2.1")

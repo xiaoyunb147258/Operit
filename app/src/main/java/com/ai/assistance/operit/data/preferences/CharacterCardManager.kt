@@ -9,6 +9,7 @@ import com.ai.assistance.operit.data.model.CharacterCard
 import com.ai.assistance.operit.data.model.CharacterCardChatModelBindingMode
 import com.ai.assistance.operit.data.model.CharacterCardMemoryProfileBindingMode
 import com.ai.assistance.operit.data.model.CharacterCardToolAccessConfig
+import com.ai.assistance.operit.data.model.CharacterRoleType
 import com.ai.assistance.operit.data.model.PromptTag
 import com.ai.assistance.operit.data.model.TagType
 import com.ai.assistance.operit.data.model.TavernCharacterCard
@@ -158,6 +159,8 @@ class CharacterCardManager private constructor(private val context: Context) {
         val memoryProfileIdKey = stringPreferencesKey("character_card_${id}_memory_profile_id")
         val toolAccessConfigKey = toolAccessConfigKey(id)
         val isDefaultKey = booleanPreferencesKey("character_card_${id}_is_default")
+        val roleTypeKey = stringPreferencesKey("character_card_${id}_role_type")
+        val teamIdKey = stringPreferencesKey("character_card_${id}_team_id")
         val createdAtKey = longPreferencesKey("character_card_${id}_created_at")
         val updatedAtKey = longPreferencesKey("character_card_${id}_updated_at")
         
@@ -179,6 +182,8 @@ class CharacterCardManager private constructor(private val context: Context) {
             memoryProfileId = preferences[memoryProfileIdKey],
             toolAccessConfig = parseToolAccessConfig(preferences[toolAccessConfigKey]),
             isDefault = (id == DEFAULT_CHARACTER_CARD_ID) || (preferences[isDefaultKey] ?: false),
+            roleType = CharacterRoleType.normalize(preferences[roleTypeKey]),
+            teamId = preferences[teamIdKey],
             createdAt = preferences[createdAtKey] ?: System.currentTimeMillis(),
             updatedAt = preferences[updatedAtKey] ?: System.currentTimeMillis()
         )
@@ -349,7 +354,15 @@ class CharacterCardManager private constructor(private val context: Context) {
                 preferences[memoryProfileIdKey] = card.memoryProfileId
             }
             writeToolAccessConfig(preferences, card.id, card.toolAccessConfig)
-            
+            preferences[stringPreferencesKey("character_card_${card.id}_role_type")] =
+                CharacterRoleType.normalize(card.roleType)
+            val teamIdKey = stringPreferencesKey("character_card_${card.id}_team_id")
+            if (card.teamId.isNullOrBlank()) {
+                preferences.remove(teamIdKey)
+            } else {
+                preferences[teamIdKey] = card.teamId
+            }
+
             // 更新修改时间
             preferences[longPreferencesKey("character_card_${card.id}_updated_at")] = System.currentTimeMillis()
         }
@@ -358,6 +371,12 @@ class CharacterCardManager private constructor(private val context: Context) {
         }
     }
     
+    // 设置角色在团队中的角色类型（指挥者/工作者）
+    suspend fun setCharacterRole(characterCardId: String, roleType: String, teamId: String? = null) {
+        val card = getCharacterCard(characterCardId)
+        updateCharacterCard(card.copy(roleType = CharacterRoleType.normalize(roleType), teamId = teamId))
+    }
+
     // 删除角色卡
     suspend fun deleteCharacterCard(id: String) {
         if (id == DEFAULT_CHARACTER_CARD_ID) return

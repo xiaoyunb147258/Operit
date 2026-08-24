@@ -31,8 +31,6 @@ import com.ai.assistance.operit.data.preferences.CharacterCardToolAccessResolver
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.preferences.MemorySpaceProfileDocumentRepository
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
-import com.ai.assistance.operit.core.avatar.impl.factory.AvatarModelFactoryImpl
-import com.ai.assistance.operit.data.repository.AvatarRepository
 import com.ai.assistance.operit.util.ChatMarkupRegex
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.core.tools.ToolProgressBus
@@ -52,8 +50,6 @@ import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.api.chat.enhance.MultiServiceManager
 import com.ai.assistance.operit.data.repository.CustomEmojiRepository
 import com.ai.assistance.operit.api.chat.llmprovider.MediaLinkBuilder
-import com.ai.assistance.operit.data.repository.getCustomMoodDefinitions
-import com.ai.assistance.operit.data.repository.getMoodAnimationMapping
 
 /** 处理会话相关功能的服务类，包括会话总结、偏好处理和对话切割准备 */
 class ConversationService(
@@ -79,9 +75,6 @@ class ConversationService(
     private val memorySpaceProfileDocumentRepository =
         MemorySpaceProfileDocumentRepository.getInstance(context)
     private val userPreferencesManager = UserPreferencesManager.getInstance(context)
-    private val avatarRepository by lazy {
-        AvatarRepository.getInstance(context, AvatarModelFactoryImpl())
-    }
     private val conversationMutex = Mutex()
 
     /**
@@ -589,18 +582,9 @@ class ConversationService(
 
                 // 构建waifu特殊规则
                 val waifuRulesText = if(waifuPreferences.enableWaifuModeFlow.first()) buildWaifuRulesText() else ""
-                // 语音头像模式：添加 <mood> 标签协议
-                val avatarMoodRulesText =
-                    if (shouldInjectMoodRules(promptFunctionType)) {
-                        buildAvatarMoodRulesText(useEnglish)
-                    } else {
-                        ""
-                    }
-                AppLogger.d("petRules", avatarMoodRulesText)
 
                 // 构建最终的系统提示词
                 val finalSystemPrompt = buildString {
-                    append(avatarMoodRulesText)
                     append(systemPrompt)
                     if (proxyRolePrompt.isNotEmpty()) {
                         append("\n\n<assistant_role source=\"proxy_character_card\">\n")
@@ -1012,41 +996,6 @@ class ConversationService(
                 }
             }
         } else ""
-    }
-
-    /**
-     * 虚拟形象的 <mood> 标签规则，仅在语音头像环境下添加到系统提示中。
-     * 会自动拼接当前头像启用的自定义 mood 类型。
-     */
-    private fun buildAvatarMoodRulesText(useEnglish: Boolean): String {
-        val currentAvatarId = avatarRepository.currentAvatar.value?.id
-        val currentConfig =
-            avatarRepository.configs.value.firstOrNull { config ->
-                config.id == currentAvatarId
-            }
-
-        val moodAnimationMapping = currentConfig?.getMoodAnimationMapping().orEmpty()
-        val customMoodDefinitions =
-            currentConfig?.getCustomMoodDefinitions()
-                .orEmpty()
-                .filter { definition ->
-                    moodAnimationMapping[definition.key]?.isNotBlank() == true
-                }
-
-        return FunctionalPrompts.avatarMoodRulesText(
-            customMoodDefinitions = customMoodDefinitions,
-            useEnglish = useEnglish
-        )
-    }
-
-    private fun shouldInjectMoodRules(promptFunctionType: PromptFunctionType): Boolean {
-        if (promptFunctionType != PromptFunctionType.VOICE) {
-            return false
-        }
-
-        val settings = avatarRepository.settings.value
-        val currentAvatar = avatarRepository.currentAvatar.value
-        return settings.isVoiceCallAvatarEnabled && currentAvatar != null
     }
 
     /**

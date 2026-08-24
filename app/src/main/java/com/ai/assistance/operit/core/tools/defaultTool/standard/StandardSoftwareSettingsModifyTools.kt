@@ -2280,21 +2280,6 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
             config.copy(customHeaders = json)
         }
 
-        applyInt("mnn_forward_type") { config, value -> config.copy(mnnForwardType = value) }
-        applyInt("mnn_thread_count") { config, value -> config.copy(mnnThreadCount = value.coerceAtLeast(1)) }
-        applyInt("llama_thread_count") { config, value -> config.copy(llamaThreadCount = value.coerceAtLeast(1)) }
-        applyInt("llama_context_size") { config, value -> config.copy(llamaContextSize = value.coerceAtLeast(1)) }
-        applyInt("llama_batch_size") { config, value -> config.copy(llamaBatchSize = value.coerceAtLeast(1)) }
-        applyInt("llama_ubatch_size") { config, value -> config.copy(llamaUBatchSize = value.coerceAtLeast(1)) }
-        applyInt("llama_gpu_layers") { config, value -> config.copy(llamaGpuLayers = value.coerceAtLeast(0)) }
-        applyBoolean("llama_use_mmap") { config, value -> config.copy(llamaUseMmap = value) }
-        applyBoolean("llama_flash_attention") { config, value ->
-            config.copy(llamaFlashAttention = value)
-        }
-        applyBoolean("llama_kv_unified") { config, value -> config.copy(llamaKvUnified = value) }
-        applyBoolean("llama_offload_kqv") { config, value ->
-            config.copy(llamaOffloadKqv = value)
-        }
         applyInt("request_limit_per_minute") { config, value ->
             config.copy(requestLimitPerMinute = value.coerceAtLeast(0))
         }
@@ -2316,10 +2301,6 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
             config.copy(enableClaude1hPromptCache = value)
         }
         applyBoolean("enable_tool_call") { config, value -> config.copy(enableToolCall = value) }
-
-        if (updated.llamaGpuLayers <= 0 && updated.llamaOffloadKqv) {
-            updated = updated.copy(llamaOffloadKqv = false)
-        }
 
         return updated to changedFields.distinct()
     }
@@ -2360,17 +2341,6 @@ class StandardSoftwareSettingsModifyTools(private val context: Context) {
             enableSummary = config.enableSummary,
             enableSummaryByMessageCount = config.enableSummaryByMessageCount,
             summaryMessageCountThreshold = config.summaryMessageCountThreshold,
-            mnnForwardType = config.mnnForwardType,
-            mnnThreadCount = config.mnnThreadCount,
-            llamaThreadCount = config.llamaThreadCount,
-            llamaContextSize = config.llamaContextSize,
-            llamaBatchSize = config.llamaBatchSize,
-            llamaUBatchSize = config.llamaUBatchSize,
-            llamaGpuLayers = config.llamaGpuLayers,
-            llamaUseMmap = config.llamaUseMmap,
-            llamaFlashAttention = config.llamaFlashAttention,
-            llamaKvUnified = config.llamaKvUnified,
-            llamaOffloadKqv = config.llamaOffloadKqv,
             enableDirectImageProcessing = config.enableDirectImageProcessing,
             enableDirectAudioProcessing = config.enableDirectAudioProcessing,
             enableDirectVideoProcessing = config.enableDirectVideoProcessing,

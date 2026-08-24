@@ -58,9 +58,25 @@ data class CharacterCard(
     val memoryProfileId: String? = null, // 固定绑定时使用的记忆配置ID
     val toolAccessConfig: CharacterCardToolAccessConfig = CharacterCardToolAccessConfig(), // 角色卡自定义工具白名单
     val isDefault: Boolean = false,
+    val roleType: String = CharacterRoleType.GENERAL, // 团队角色类型: LEADER(指挥者) / WORKER(工作者) / GENERAL
+    val teamId: String? = null, // 所属团队ID（项目）
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
+
+/** 团队角色类型 */
+object CharacterRoleType {
+    const val LEADER = "LEADER" // 指挥者
+    const val WORKER = "WORKER" // 工作者
+    const val GENERAL = "GENERAL" // 普通角色（无团队归属）
+
+    fun normalize(type: String?): String {
+        return when (type) {
+            LEADER, WORKER -> type
+            else -> GENERAL
+        }
+    }
+}
 
 object CharacterCardChatModelBindingMode {
     const val FOLLOW_GLOBAL = "FOLLOW_GLOBAL"

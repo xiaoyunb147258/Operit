@@ -35,8 +35,6 @@ enum class ApiProviderType {
         LMSTUDIO, // LM Studio本地模型服务
         OLLAMA, // Ollama 本地/私有部署服务（OpenAI兼容）
         OPENAI_LOCAL, // OpenAI兼容本地模型服务
-        MNN, // MNN本地推理引擎
-        LLAMA_CPP, // llama.cpp 本地推理引擎
         PPINFRA, // 派欧云
         NOVITA, // Novita AI
         MINIMAX, // MiniMax
@@ -124,22 +122,6 @@ data class ModelConfigData(
                 ModelConfigDefaults.DEFAULT_SUMMARY_MESSAGE_COUNT_THRESHOLD,
         // 自定义总结规则
         val summaryCustomRules: String = "",
-
-        // MNN特定配置
-        // 注意：MNN模型路径会根据modelName自动构建，不需要单独存储
-        val mnnForwardType: Int = 0, // 前向计算类型 (CPU/GPU等)
-        val mnnThreadCount: Int = 4, // 推理线程数
-
-        // llama.cpp 特定配置
-        val llamaThreadCount: Int = 4, // 推理线程数
-        val llamaContextSize: Int = 2048, // n_ctx
-        val llamaBatchSize: Int = 512, // n_batch
-        val llamaUBatchSize: Int = 512, // n_ubatch
-        val llamaGpuLayers: Int = 0, // n_gpu_layers
-        val llamaUseMmap: Boolean = false, // Android上默认关闭，减少mmap导致的兼容性问题
-        val llamaFlashAttention: Boolean = false, // Android上默认关闭，更接近PocketPal安全值
-        val llamaKvUnified: Boolean = true, // 单并发聊天默认开启统一KV缓存
-        val llamaOffloadKqv: Boolean = false, // 仅在启用GPU层时有意义
 
         // 图片处理配置
         val enableDirectImageProcessing: Boolean = false, // 是否启用直接图片处理

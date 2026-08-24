@@ -286,13 +286,15 @@ class CharacterGroupCardManager private constructor(private val context: Context
             .mapIndexed { index, member ->
                 GroupMemberConfig(
                     characterCardId = member.characterCardId,
-                    orderIndex = index
+                    orderIndex = index,
+                    roleType = member.roleType
                 )
             }
         val now = System.currentTimeMillis()
 
         return group.copy(
             members = normalizedMembers,
+            leaderCardId = group.leaderCardId,
             createdAt = if (group.createdAt > 0) group.createdAt else now,
             updatedAt = if (group.updatedAt > 0) group.updatedAt else now
         )

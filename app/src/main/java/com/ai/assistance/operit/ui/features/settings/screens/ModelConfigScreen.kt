@@ -150,7 +150,6 @@ private fun serializeHeaderEntries(headers: List<Pair<String, String>>): String 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ModelConfigScreen(
-    navigateToMnnModelDownload: (() -> Unit)? = null,
     entryMode: ModelConfigEntryMode = ModelConfigEntryMode.STANDARD
 ) {
     val context = LocalContext.current
@@ -758,8 +757,7 @@ fun ModelConfigScreen(
                         config = config,
                         configManager = configManager,
                         saveCoordinator = saveCoordinator,
-                        showNotification = { message -> showNotification(message) },
-                        navigateToMnnModelDownload = navigateToMnnModelDownload
+                        showNotification = { message -> showNotification(message) }
                     )
                 }
 

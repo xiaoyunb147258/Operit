@@ -7,23 +7,17 @@
 ```text
 Operit-follow-up/
 ├── app/             主 Android 应用
-├── avator/          角色与模型 Android 模块
-│   ├── dragonbones/  DragonBones 动画 Android 库
-│   ├── fbx/          FBX 模型 Android 原生库
-│   └── mmd/          MMD 模型运行时与预览模块
 ├── ci/              CI 与本地自动化脚本
 ├── docs/            项目文档与文档资源
 ├── examples/        JavaScript/TypeScript 工具包示例
 ├── gradle/          Gradle Wrapper 与版本目录
-├── llm/             本地大模型 Android 模块
-│   ├── llama/        llama.cpp 本地推理 Android 模块
-│   └── mnn/          MNN 本地推理 Android 模块
 ├── quickjs/         QuickJS JNI 模块
 ├── showerclient/    Shower 虚拟显示客户端库
 ├── terminal/        OperitTerminalCore Git 子模块
-├── tools/           开发、调试与构建辅助工具
-└── web-chat/        React + Vite Web Chat 前端
+└── tools/           开发、调试与构建辅助工具
 ```
+
+> 说明：原 `avator/`（虚拟形象）、`llm/`（本地大模型）与 `web-chat/`（Web Chat 前端）模块已按「AI 团队软件」方向移除。云端大语言模型提供商、工具系统、工作区、记忆与 UI 自动化等核心能力均予保留。
 
 ## 各目录说明
 

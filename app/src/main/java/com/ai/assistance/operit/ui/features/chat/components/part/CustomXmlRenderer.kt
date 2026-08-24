@@ -1480,7 +1480,5 @@ class CustomXmlRenderer(
     @Composable
     private fun renderMoodTag(_content: String, _modifier: Modifier, _textColor: Color) {
         // mood标签不显示任何内容
-        // 它只是作为一个标记存在于文本中，供虚拟形象系统解析
-        // 实际的情感触发由 AvatarEmotionManager.analyzeEmotion() 处理
     }
 }

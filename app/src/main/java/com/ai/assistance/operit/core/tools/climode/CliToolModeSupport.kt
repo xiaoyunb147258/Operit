@@ -25,9 +25,7 @@ enum class ToolExposureMode {
             return when (providerType) {
                 ApiProviderType.LMSTUDIO,
                 ApiProviderType.OLLAMA,
-                ApiProviderType.OPENAI_LOCAL,
-                ApiProviderType.MNN,
-                ApiProviderType.LLAMA_CPP -> CLI
+                ApiProviderType.OPENAI_LOCAL -> CLI
                 else -> FULL
             }
         }

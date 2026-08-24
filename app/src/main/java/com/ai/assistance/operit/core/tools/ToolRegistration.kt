@@ -14,6 +14,7 @@ import com.ai.assistance.operit.data.preferences.ResolvedCharacterCardToolAccess
 import com.ai.assistance.operit.integrations.tasker.triggerAIAgentAction
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.common.displays.VirtualDisplayOverlay
+import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardTeamCommandTool
 import com.ai.assistance.operit.util.LocaleUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1198,6 +1199,50 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                             error = "Calculation error: ${e.message}"
                     )
                 }
+            }
+    )
+
+    // 团队指挥工具：指挥者委派任务给工作者 / 查看团队成员
+    handler.registerTool(
+            name = "delegate_task",
+            descriptionGenerator = { tool ->
+                val worker = tool.parameters.find { it.name == "worker_name" }?.value ?: ""
+                val task = tool.parameters.find { it.name == "task_description" }?.value ?: ""
+                "向团队工作者委派任务：工作者=$worker，任务=$task"
+            },
+            executor = { tool ->
+                val worker = tool.parameters.find { it.name == "worker_name" }?.value ?: ""
+                val task = tool.parameters.find { it.name == "task_description" }?.value ?: ""
+                if (worker.isBlank() || task.isBlank()) {
+                    ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "delegate_task 需要 worker_name 与 task_description 参数"
+                    )
+                } else {
+                    val message = StandardTeamCommandTool.delegateTask(context, worker, task)
+                    ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result = StringResultData(message)
+                    )
+                }
+            }
+    )
+    handler.registerTool(
+            name = "list_team_members",
+            descriptionGenerator = { _ ->
+                "列出当前团队的指挥者与工作者成员"
+            },
+            executor = { tool ->
+                val teamId = tool.parameters.find { it.name == "team_id" }?.value
+                val message = StandardTeamCommandTool.listTeamMembers(context, teamId)
+                ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result = StringResultData(message)
+                )
             }
     )
 

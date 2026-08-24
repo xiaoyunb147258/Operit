@@ -54,7 +54,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.ai.assistance.operit.ui.floating.ui.pet.AvatarEmotionManager
 import com.ai.assistance.operit.api.voice.VoiceService
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.preferences.SpeechServiceProfilesPreferences
@@ -1348,7 +1347,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 val timestampOfFirstDeletedMessage = currentHistory[index].timestamp
                 chatHistoryDelegate.truncateChatHistory(timestampOfFirstDeletedMessage)
 
-                val plainText = AvatarEmotionManager.stripXmlLikeTags(targetMessage.content)
+                val plainText = targetMessage.content
                 updateUserMessage(TextFieldValue(plainText))
 
                 uiStateDelegate.showToast(context.getString(R.string.chat_rolled_back_message_in_input))

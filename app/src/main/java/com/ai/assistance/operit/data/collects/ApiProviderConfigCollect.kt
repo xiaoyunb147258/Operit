@@ -224,18 +224,6 @@ object ApiProviderConfigs {
             requiresApiKey = false
         ),
         ProviderApiConfig(
-            providerType = ApiProviderType.MNN,
-            defaultModelName = "",
-            defaultApiEndpoint = "",
-            requiresApiKey = false
-        ),
-        ProviderApiConfig(
-            providerType = ApiProviderType.LLAMA_CPP,
-            defaultModelName = "",
-            defaultApiEndpoint = "",
-            requiresApiKey = false
-        ),
-        ProviderApiConfig(
             providerType = ApiProviderType.PPINFRA,
             defaultModelName = "gpt-4o-mini",
             defaultApiEndpoint = "https://api.ppinfra.com/openai/v1/chat/completions"

@@ -2034,8 +2034,8 @@ class EnhancedAIService private constructor(private val context: Context) {
         }
 
         if (!isSubTask) {
-            notifyReplyCompleted(chatId, characterName, avatarUri, notifyReplyOverride)
-            stopAiService(characterName, avatarUri)
+            notifyReplyCompleted(chatId, characterName, notifyReplyOverride)
+            stopAiService(characterName)
         }
     }
 
@@ -3027,9 +3027,6 @@ class EnhancedAIService private constructor(private val context: Context) {
                 if (characterName != null) {
                     putExtra(AIForegroundService.EXTRA_CHARACTER_NAME, characterName)
                 }
-                if (avatarUri != null) {
-                    putExtra(AIForegroundService.EXTRA_AVATAR_URI, avatarUri)
-                }
             }
             context.startService(updateIntent)
         } catch (e: Exception) {
@@ -3044,7 +3041,6 @@ class EnhancedAIService private constructor(private val context: Context) {
     private fun notifyReplyCompleted(
         chatId: String?,
         characterName: String? = null,
-        avatarUri: String? = null,
         notifyReplyOverride: Boolean? = null
     ) {
         AIForegroundService.notifyReplyCompleted(
@@ -3052,7 +3048,6 @@ class EnhancedAIService private constructor(private val context: Context) {
             chatId = chatId,
             characterName = characterName,
             rawReplyContent = lastReplyContent,
-            avatarUri = avatarUri,
             notifyReplyOverride = notifyReplyOverride
         )
     }
@@ -3083,11 +3078,10 @@ class EnhancedAIService private constructor(private val context: Context) {
             try {
                 val stopIntent = Intent(context, AIForegroundService::class.java).apply {
                     putExtra(AIForegroundService.EXTRA_CHARACTER_NAME, characterName)
-                    putExtra(AIForegroundService.EXTRA_AVATAR_URI, avatarUri)
                     putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_IDLE)
                 }
 
-                AppLogger.d(TAG, "传递闲置状态 - 角色: $characterName, 头像: $avatarUri")
+                AppLogger.d(TAG, "传递闲置状态 - 角色: $characterName")
 
                 // 仅发送更新，不再真正停止前台服务
                 context.startService(stopIntent)
