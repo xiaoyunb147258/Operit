@@ -5,7 +5,6 @@
 ## 贡献类型
 
 - Android 应用、工具调用、工作流、数据和 UI：主要位于 `app/`
-- WebChat：位于 `web-chat/`，构建结果会同步到 Android assets
 - 脚本、Skill、Plugin、MCP 和示例包：位于 `examples/`，格式说明见 [ToolPkg 指南](../../TOOLPKG_FORMAT_GUIDE.md)
 - 文档和协作资料：位于 `docs/`
 - 构建、检查和仓库自动化：位于 `.github/`、`ci/` 和 `tools/`
@@ -25,7 +24,7 @@
 
 ## 开发前准备
 
-项目是 Android 主应用，同时包含 native 子模块、WebChat 和脚本构建步骤。完整环境要求以 [Android 编译指南](./BUILDING.md) 为准，当前 CI 使用的主要版本包括：
+项目是 Android 主应用，同时包含 native 子模块和脚本构建步骤。完整环境要求以 [Android 编译指南](./BUILDING.md) 为准，当前 CI 使用的主要版本包括：
 
 - JDK 21
 - Node.js 22、npm 和 pnpm
@@ -44,7 +43,7 @@ git fetch upstream
 git switch -c fix/short-description upstream/development
 ```
 
-不要提交 `local.properties`、本地密钥、手动下载的模型和二进制依赖。修改 WebChat 或示例包时，先按照编译指南准备根目录和 `web-chat` 的依赖。
+不要提交 `local.properties`、本地密钥、手动下载的模型和二进制依赖。修改示例包时，先按照编译指南准备根目录依赖。
 
 ## 开发原则
 
@@ -68,16 +67,11 @@ python3 -B -m unittest discover -s ci/test -p 'test_*.py'
 python3 -B ci/script/check_repo_hygiene.py --base "$BASE_SHA" --candidate "$CANDIDATE_SHA"
 python3 -B ci/script/check_markdown_links.py --base "$BASE_SHA" --candidate "$CANDIDATE_SHA"
 python3 -B ci/script/check_localizations.py --base "$BASE_SHA" --candidate "$CANDIDATE_SHA"
-npm --prefix web-chat run typecheck
 ```
 
 根据改动范围选择额外检查：
 
 ```bash
-# WebChat
-npm --prefix web-chat ci
-npm --prefix web-chat run build
-
 # 示例包或 ToolPkg
 npm ci
 npm run build:examples:github
@@ -148,7 +142,7 @@ GitHub 为 PR 与当前 `development` 生成的 merge candidate 上：
 - 翻译资源：执行 AAPT2 resource compile，不启动完整 Android 构建
 - Kotlin/Java：由 `Android JVM tests` job 执行 JVM 单测
 - Native、Gradle 和构建输入：由 `Android build` job 执行 assemble，JVM 单测由独立 job 执行
-- WebChat 和 ToolPkg：对应路径变化时执行专项检查，完整 Android lane 也会准备最终打包输入
+- ToolPkg：对应路径变化时执行专项检查，完整 Android lane 也会准备最终打包输入
 
 快速检查会在一个 job 中收集可修诊断，再由 `Candidate checks` 聚合所有适用 job 的结果。
 既有且未被本 PR 触碰的问题只作为计数提示。请查看 step summary、job 结果和文件 annotation 后更新 PR。

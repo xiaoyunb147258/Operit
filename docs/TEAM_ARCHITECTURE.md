@@ -42,6 +42,14 @@ Operit 已改造为「AI 团队软件」：由一名**指挥者(Leader)** 统筹
 - `buildTeamHistoryTree(messages, leaderName)`：将聊天历史按角色（指挥者/工作者）分组为树状结构。
 - `TeamHistoryTreeView(branches)`：树状 UI，根节点为「项目」，子节点为「指挥者 / 工作者」及其消息数。
 
+## 当前实现状态
+
+数据层与指挥工具已落地，编排与 UI 接线仍在进行中：
+
+- 已完成：`CharacterCard` / `CharacterGroupCard` 的团队字段与持久化、`CharacterCardManager.setCharacterRole`、`delegate_task` 与 `list_team_members` 工具注册
+- 尚未接线：`TeamCommandManager.consumeDelegation()` 暂无调用方，委派请求被记录后还没有编排层消费它、触发工作者的独立 Agent 轮次
+- 尚未接线：`TeamHistoryTreeView` 与 `buildTeamHistoryTree` 暂未被任何界面引用，聊天界面仍按普通流式布局渲染历史
+
 ## 移除的内容
 
 - **虚拟形象**：`avator/*`、`core/avatar`、DragonBones/MMD/FBX/glTF 渲染与相关 UI（悬浮全屏、助手配置、主题头像选择等静态头像除外）。

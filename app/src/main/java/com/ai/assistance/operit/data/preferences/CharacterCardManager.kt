@@ -371,7 +371,11 @@ class CharacterCardManager private constructor(private val context: Context) {
         }
     }
     
-    // 设置角色在团队中的角色类型（指挥者/工作者）
+    /**
+     * 设置角色在团队中的角色类型（指挥者/工作者），并写入所属团队 ID。
+     * [roleType] 经 [CharacterRoleType.normalize] 归一化，非法值会落回 GENERAL；
+     * [teamId] 传 null 表示脱离团队。
+     */
     suspend fun setCharacterRole(characterCardId: String, roleType: String, teamId: String? = null) {
         val card = getCharacterCard(characterCardId)
         updateCharacterCard(card.copy(roleType = CharacterRoleType.normalize(roleType), teamId = teamId))

@@ -16,6 +16,9 @@ data class TeamDelegationRequest(
 /**
  * 团队指挥命令的共享状态。
  * 指挥者调用 delegate_task 后，此处记录委派请求，由编排层读取并触发对应工作者的独立 Agent 轮次。
+ *
+ * 注意：consumeDelegation() 当前尚无调用方——委派请求会被记录，
+ * 但消费端（工作者 Agent 轮次的编排）还未接线，接线后此对象即为编排层与工具层之间的唯一交接点。
  */
 object TeamCommandManager {
     @Volatile

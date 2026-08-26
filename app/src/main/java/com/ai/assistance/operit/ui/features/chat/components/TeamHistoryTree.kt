@@ -15,6 +15,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatMessage
 
+/*
+ * 团队历史消息树组件（AI 团队软件方向）。
+ * 当前尚未接入任何聊天界面，聊天页仍按普通流式布局渲染；
+ * 接入时建议由 ChatViewModel 提供 leaderName（当前团队指挥者名）。
+ */
+
 /**
  * 团队历史消息树节点
  * 结构：项目(Project) -> 指挥者(Leader) / 工作者(Worker)
