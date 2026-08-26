@@ -10,6 +10,10 @@ from pathlib import Path
 from collections import defaultdict
 from typing import List, Tuple, Dict
 
+# 仓库根：tools/string -> tools -> 仓库根。
+# 统计输出的相对路径以此为基准，不这么做的话硬编码开发机绝对路径在其他机器上必然抛 ValueError
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 # 排除模式
 PATTERNS_TO_EXCLUDE = [
     (r'//.*', '单行注释'),
@@ -225,7 +229,7 @@ def should_exclude_string(content: str, line: str, string_pos: Tuple[int, int]) 
 def count_chinese_strings_in_file(file_path: Path) -> Dict:
     """统计单个文件中的中文字符串"""
     result = {
-        'file': str(file_path.relative_to('D:\\Code\\prog\\assistance')),
+        'file': str(file_path.relative_to(REPO_ROOT)),
         'total': 0,
         'excluded_comments': 0,
         'excluded_logs': 0,
@@ -318,9 +322,10 @@ def analyze_directory(root_dir: Path) -> Dict:
 
             # 按模块统计
             try:
-                rel_path = str(result['file'])
+                # 先统一为正斜杠再检查与切分，否则 Windows 反斜杠路径在 Linux 上切分失败
+                rel_path = str(result['file']).replace('\\', '/')
                 if 'ui/features' in rel_path:
-                    module = rel_path.split('ui\\features\\')[1].split('\\')[0]
+                    module = rel_path.split('ui/features/')[1].split('/')[0]
                     module_stats[module]['total'] += result['total']
                     module_stats[module]['remaining'] += result['remaining']
                     module_stats[module]['files'] += 1
@@ -386,8 +391,7 @@ def print_report(analysis: Dict):
     print(f"[DONE] Results saved to: {output_file.absolute()}")
 
 def main():
-    repo_root = Path(__file__).resolve().parents[2]
-    root_dir = repo_root / 'app' / 'src' / 'main' / 'java' / 'com' / 'ai' / 'assistance' / 'operit'
+    root_dir = REPO_ROOT / 'app' / 'src' / 'main' / 'java' / 'com' / 'ai' / 'assistance' / 'operit'
 
     if not root_dir.exists():
         print(f"[ERROR] Directory does not exist: {root_dir}")

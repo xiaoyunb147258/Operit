@@ -57,9 +57,20 @@ class MemoryDocumentsProvider : DocumentsProvider() {
             DocumentsContract.Document.COLUMN_FLAGS,
             DocumentsContract.Document.COLUMN_SIZE
         )
+        // Provider 实例由系统创建，删除流程无法拿到实例引用，缓存须静态持有以便静态失效
+        private val repositoryCache: MutableMap<String, MemoryRepository> = mutableMapOf()
+
+        /**
+         * 记忆空间删除后其 ObjectBox Store 已被关闭，缓存的 MemoryRepository 不可再用，
+         * 由删除入口显式调用以丢弃该 profileId 的缓存条目。
+         */
+        fun invalidateRepositoryCache(profileId: String) {
+            synchronized(repositoryCache) {
+                repositoryCache.remove(profileId)
+            }
+        }
     }
 
-    private val repositoryCache: MutableMap<String, MemoryRepository> = mutableMapOf()
     private val writeBackExecutor = Executors.newSingleThreadExecutor()
 
     private fun requireProviderContext(): Context {

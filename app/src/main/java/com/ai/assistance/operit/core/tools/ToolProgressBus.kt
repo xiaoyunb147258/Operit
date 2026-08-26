@@ -41,16 +41,18 @@ object ToolProgressBus {
             level = level
         )
 
-        val current = _progress.value
-        val shouldReplace =
-            current == null ||
-                current.toolName == next.toolName ||
-                current.progress >= 1f ||
-                next.priority > current.priority ||
-                (next.priority == current.priority && next.level >= current.level)
+        // CAS 循环：读-判-写必须原子，否则并发 update 会基于过期 current 覆盖彼此的写入
+        while (true) {
+            val current = _progress.value
+            val shouldReplace =
+                current == null ||
+                    current.toolName == next.toolName ||
+                    current.progress >= 1f ||
+                    next.priority > current.priority ||
+                    (next.priority == current.priority && next.level >= current.level)
 
-        if (shouldReplace) {
-            _progress.value = next
+            if (!shouldReplace) return
+            if (_progress.compareAndSet(current, next)) return
         }
     }
 

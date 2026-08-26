@@ -8,6 +8,8 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -53,38 +55,36 @@ class StandardShellExecutor(private val context: Context) : ShellExecutor {
                     // 使用Runtime执行简单命令
                     val process = Runtime.getRuntime().exec(command)
 
-                    // 设置超时
-                    val completed = process.waitFor(COMMAND_TIMEOUT, TimeUnit.SECONDS)
-                    if (!completed) {
-                        process.destroy()
-                        return@withContext ShellExecutor.CommandResult(
-                                false,
-                                "",
-                                "Command timed out after $COMMAND_TIMEOUT seconds",
-                                -1
+                    return@withContext coroutineScope {
+                        // 两个流必须并发读取：任一顺序读都会在另一流写满管道缓冲区时死锁
+                        val stdout = async(Dispatchers.IO) {
+                            process.inputStream.bufferedReader().use { it.readText() }
+                        }
+                        val stderr = async(Dispatchers.IO) {
+                            process.errorStream.bufferedReader().use { it.readText() }
+                        }
+
+                        // 必须先读流再等待退出：输出超管道缓冲区时子进程阻塞在write上，先waitFor必然超时且输出丢失
+                        val completed = process.waitFor(COMMAND_TIMEOUT, TimeUnit.SECONDS)
+                        if (!completed) {
+                            process.destroy()
+                            return@coroutineScope ShellExecutor.CommandResult(
+                                    false,
+                                    "",
+                                    "Command timed out after $COMMAND_TIMEOUT seconds",
+                                    -1
+                            )
+                        }
+
+                        val exitCode = process.exitValue()
+
+                        ShellExecutor.CommandResult(
+                                exitCode == 0,
+                                stdout.await(),
+                                stderr.await(),
+                                exitCode
                         )
                     }
-
-                    // 读取标准输出
-                    val stdout =
-                            BufferedReader(InputStreamReader(process.inputStream)).use {
-                                it.readText()
-                            }
-
-                    // 读取错误输出
-                    val stderr =
-                            BufferedReader(InputStreamReader(process.errorStream)).use {
-                                it.readText()
-                            }
-
-                    val exitCode = process.exitValue()
-
-                    return@withContext ShellExecutor.CommandResult(
-                            exitCode == 0,
-                            stdout,
-                            stderr,
-                            exitCode
-                    )
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "Error executing standard command", e)
                     return@withContext ShellExecutor.CommandResult(
@@ -107,46 +107,44 @@ class StandardShellExecutor(private val context: Context) : ShellExecutor {
                     // 使用sh -c执行带有shell特性的命令
                     val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
 
-                    // 设置超时
-                    val completed = process.waitFor(COMMAND_TIMEOUT, TimeUnit.SECONDS)
-                    if (!completed) {
-                        process.destroy()
-                        return@withContext ShellExecutor.CommandResult(
-                                false,
-                                "",
-                                "Command timed out after $COMMAND_TIMEOUT seconds",
-                                -1
+                    return@withContext coroutineScope {
+                        // 两个流必须并发读取：任一顺序读都会在另一流写满管道缓冲区时死锁
+                        val stdout = async(Dispatchers.IO) {
+                            process.inputStream.bufferedReader().use { it.readText() }
+                        }
+                        val stderr = async(Dispatchers.IO) {
+                            process.errorStream.bufferedReader().use { it.readText() }
+                        }
+
+                        // 必须先读流再等待退出：输出超管道缓冲区时子进程阻塞在write上，先waitFor必然超时且输出丢失
+                        val completed = process.waitFor(COMMAND_TIMEOUT, TimeUnit.SECONDS)
+                        if (!completed) {
+                            process.destroy()
+                            return@coroutineScope ShellExecutor.CommandResult(
+                                    false,
+                                    "",
+                                    "Command timed out after $COMMAND_TIMEOUT seconds",
+                                    -1
+                            )
+                        }
+
+                        val exitCode = process.exitValue()
+
+                        // 对于grep命令，即使没有匹配也认为成功
+                        val success =
+                                if (command.contains("grep")) {
+                                    exitCode == 0 || exitCode == 1
+                                } else {
+                                    exitCode == 0
+                                }
+
+                        ShellExecutor.CommandResult(
+                                success,
+                                stdout.await(),
+                                stderr.await(),
+                                exitCode
                         )
                     }
-
-                    // 读取标准输出
-                    val stdout =
-                            BufferedReader(InputStreamReader(process.inputStream)).use {
-                                it.readText()
-                            }
-
-                    // 读取错误输出
-                    val stderr =
-                            BufferedReader(InputStreamReader(process.errorStream)).use {
-                                it.readText()
-                            }
-
-                    val exitCode = process.exitValue()
-
-                    // 对于grep命令，即使没有匹配也认为成功
-                    val success =
-                            if (command.contains("grep")) {
-                                exitCode == 0 || exitCode == 1
-                            } else {
-                                exitCode == 0
-                            }
-
-                    return@withContext ShellExecutor.CommandResult(
-                            success,
-                            stdout,
-                            stderr,
-                            exitCode
-                    )
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "Error executing shell command", e)
                     return@withContext ShellExecutor.CommandResult(

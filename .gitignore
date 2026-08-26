@@ -85,3 +85,6 @@ tmp
 temp
 .tmp
 .temp
+
+# IDE 的 HTML 分享缓存，自动生成，不属于仓库
+.trae-html-share-packages/

@@ -125,17 +125,18 @@ class Terminal private constructor(private val context: Context) {
                 }
         }
 
-        // 等待收集器准备就绪
-        collectorReady.await()
-        
-        // 直接向指定会话发送命令，不切换当前会话
-        terminalManager.sendCommandToSession(sessionId, command, commandId)
+        try {
+            // 等待收集器准备就绪
+            collectorReady.await()
 
-        val result = deferred.await()
-        
-        job.cancel()
-        
-        return result
+            // 直接向指定会话发送命令，不切换当前会话
+            terminalManager.sendCommandToSession(sessionId, command, commandId)
+
+            return deferred.await()
+        } finally {
+            // 调用方取消时 await 抛 CancellationException，cancel 必须在 finally 中执行，否则收集协程在类级 scope 上永久泄漏
+            job.cancel()
+        }
     }
 
     suspend fun executeHiddenCommand(

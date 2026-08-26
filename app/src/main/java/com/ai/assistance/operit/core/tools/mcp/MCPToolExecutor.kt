@@ -556,9 +556,15 @@ class MCPManager(private val context: Context) {
                 kotlinx.coroutines.runBlocking { session.close() }
                 null
             } else {
-                sessionCache[pluginId] = session
-                connectionFailureReasons.remove(pluginId)
-                session
+                // putIfAbsent 定胜负：并发建立连接时只有先入缓存者生效；落败方必须关闭自己建立的连接，否则该连接失去引用永久泄漏
+                val winner = sessionCache.putIfAbsent(pluginId, session)
+                if (winner != null) {
+                    kotlinx.coroutines.runBlocking { session.close() }
+                    winner
+                } else {
+                    connectionFailureReasons.remove(pluginId)
+                    session
+                }
             }
         } catch (e: Exception) {
             connectionFailureReasons[pluginId] =

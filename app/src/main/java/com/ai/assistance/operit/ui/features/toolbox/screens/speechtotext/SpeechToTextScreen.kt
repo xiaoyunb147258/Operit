@@ -124,7 +124,9 @@ fun SpeechToTextScreen(navController: NavController) {
     var recognitionMode by remember { mutableStateOf(SpeechServiceFactory.SpeechServiceType.SHERPA_NCNN) }
 
     var speechService by remember {
-        mutableStateOf(SpeechServiceFactory.createSpeechService(context, recognitionMode))
+        // remember 初始值在主线程同步求值，用不依赖 DataStore 的本地引擎占位；
+        // recognitionMode 初值即 SHERPA_NCNN，且下方 LaunchedEffect 首次组合即会按 profile 重建
+        mutableStateOf(SpeechServiceFactory.createLocalSpeechService(context))
     }
 
     LaunchedEffect(recognitionMode) {

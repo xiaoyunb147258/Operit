@@ -101,6 +101,10 @@ class McpBridge {
 
     private fatalServices: Set<string> = new Set();
 
+    // 预期关闭（unspawn/闲置回收）的服务：暂存注册信息，等真实 exit 事件到达后恢复注册表。
+    // 进程退出是异步的，以 exit 事件为准而不是固定延时猜测退出时刻
+    private pendingExpectedStops: Map<string, McpServiceInfo> = new Map();
+
     private serviceLogs: Map<string, string[]> = new Map();
     private readonly MAX_LOG_LINES = 400;
     private readonly MAX_LOG_LINE_LENGTH = 4000;
@@ -191,11 +195,11 @@ class McpBridge {
                     // Manually unspawn the service
                     const helper = this.serviceHelpers.get(serviceName);
                     if (helper) {
-                        // Temporarily remove from registry to prevent auto-restart logic from firing
+                        // 标记为预期退出并暂时摘除注册，exit 事件回调负责恢复注册表；
+                        // 进程退出是异步的，不能用固定延时猜测退出时刻，否则 exit 晚到会被当成意外崩溃重启
+                        this.pendingExpectedStops.set(serviceName, serviceInfo);
                         this.serviceRegistry.delete(serviceName);
                         helper.kill();
-                        // Re-add to registry after a short delay
-                        setTimeout(() => this.serviceRegistry.set(serviceName, serviceInfo), 100);
                     }
                 }
             }
@@ -437,6 +441,16 @@ class McpBridge {
 
             this.serviceHelpers.delete(serviceName);
             this.serviceReadyMap.set(serviceName, false);
+
+            // 预期退出（unspawn/闲置回收）：只恢复注册表，不安排自动重启；
+            // 否则注册表仍在说明是意外崩溃退出，走 handleServiceClosure 重启
+            const expectedStopInfo = this.pendingExpectedStops.get(serviceName);
+            if (expectedStopInfo) {
+                this.pendingExpectedStops.delete(serviceName);
+                this.serviceRegistry.set(serviceName, expectedStopInfo);
+                return;
+            }
+
             // Dont unregister, allow reconnection logic to handle it
             if (this.serviceRegistry.has(serviceName)) {
                 this.handleServiceClosure(serviceName, exitSignal);
@@ -869,16 +883,14 @@ class McpBridge {
                         if (helper) {
                             console.log(`[${serviceToUnspawn}] Unspawning service helper...`);
                             // Don't unregister, just kill the process. The 'exit' handler will clean up the helper map.
-                            // Temporarily remove from registry to prevent immediate auto-restart
                             const serviceInfo = this.serviceRegistry.get(serviceToUnspawn);
-                            this.serviceRegistry.delete(serviceToUnspawn);
-
-                            helper.kill();
-
-                            // Add it back to the registry after a short delay
                             if (serviceInfo) {
-                                setTimeout(() => this.serviceRegistry.set(serviceToUnspawn, serviceInfo), 100);
+                                // 标记为预期退出并暂时摘除注册，exit 事件回调负责恢复注册表；
+                                // 进程退出是异步的，不能用固定延时猜测退出时刻，否则 exit 晚到会被当成意外崩溃重启
+                                this.pendingExpectedStops.set(serviceToUnspawn, serviceInfo);
+                                this.serviceRegistry.delete(serviceToUnspawn);
                             }
+                            helper.kill();
                         }
                         response = { id, success: true, result: { status: "unspawned", name: serviceToUnspawn } };
                     }
@@ -1017,6 +1029,7 @@ class McpBridge {
                     this.mcpErrors.clear();
                     this.restartAttempts.clear();
                     this.serviceExitSignals.clear(); // Clear the new map
+                    this.pendingExpectedStops.clear(); // 不清空的话，unspawn 后迟到的 exit 事件会把已复位的注册表复活
 
                     // 清空服务注册表
                     this.serviceRegistry.clear();
@@ -1191,7 +1204,7 @@ class McpBridge {
 
                 // 添加socket超时以防止客户端挂起
                 // 设置为请求超时的 2 倍，确保有足够时间完成工具调用
-                socket.setTimeout(120000); // 120秒超时 (REQUEST_TIMEOUT * 2)
+                socket.setTimeout(this.REQUEST_TIMEOUT * 2);
                 socket.on('timeout', () => {
                     console.log(`Socket timeout: ${socket.remoteAddress}:${socket.remotePort}`);
                     socket.end();

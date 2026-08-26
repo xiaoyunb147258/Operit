@@ -163,7 +163,10 @@ object ActivityLifecycleManager : Application.ActivityLifecycleCallbacks {
             val now = System.currentTimeMillis()
             if (now - lastMicEnsureAtMs >= 2500L) {
                 lastMicEnsureAtMs = now
-                AIForegroundService.ensureMicrophoneForeground(activity.applicationContext)
+                // ensureMicrophoneForeground 需挂起读 DataStore，投递到协程，避免阻塞主线程
+                scope.launch {
+                    AIForegroundService.ensureMicrophoneForeground(activity.applicationContext)
+                }
             }
         } catch (_: Exception) {
         }

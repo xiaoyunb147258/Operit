@@ -14,6 +14,16 @@ object MarkdownExporter {
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
     
     /**
+     * 转义 chat-info / msg 注释里的元数据值
+     * 值内的分隔符必须转义，否则导入侧按 [,;] 切分属性时会把值截断。
+     * 实体不带分号（&#44 而非 &#44;）：分号同为切分符，带分号的实体会被一起切散。
+     * & 必须最先转义，否则先引入的实体里的 & 会被后续替换二次转义
+     */
+    private fun escapeMetaValue(value: String) =
+        value.replace("&", "&amp").replace(",", "&#44")
+            .replace(";", "&#59").replace("=", "&#61")
+
+    /**
      * 导出单个对话为 Markdown
      */
     fun exportSingle(context: Context, chatHistory: ChatHistory): String {
@@ -22,12 +32,12 @@ object MarkdownExporter {
         // 结构化元数据注释 (简化格式)
         // 格式: key=value, key=value
         val metaParts = mutableListOf<String>()
-        metaParts.add("id=${chatHistory.id}")
-        metaParts.add("title=${chatHistory.title}")
-        metaParts.add("created=${chatHistory.createdAt.format(dateFormatter)}")
-        metaParts.add("updated=${chatHistory.updatedAt.format(dateFormatter)}")
+        metaParts.add("id=${escapeMetaValue(chatHistory.id)}")
+        metaParts.add("title=${escapeMetaValue(chatHistory.title)}")
+        metaParts.add("created=${escapeMetaValue(chatHistory.createdAt.format(dateFormatter))}")
+        metaParts.add("updated=${escapeMetaValue(chatHistory.updatedAt.format(dateFormatter))}")
         if (chatHistory.group != null) {
-            metaParts.add("group=${chatHistory.group}")
+            metaParts.add("group=${escapeMetaValue(chatHistory.group)}")
         }
         sb.appendLine("<!-- chat-info: ${metaParts.joinToString(", ")} -->")
 
@@ -106,7 +116,7 @@ object MarkdownExporter {
         msgParts.add(role) // 简写: <!-- msg: user -->
         
         if (message.modelName.isNotEmpty() && message.modelName != "markdown") {
-            msgParts.add("model=${message.modelName}")
+            msgParts.add("model=${escapeMetaValue(message.modelName)}")
         }
         
         msgParts.add("timestamp=${message.timestamp}")

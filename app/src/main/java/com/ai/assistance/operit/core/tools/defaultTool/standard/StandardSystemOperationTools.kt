@@ -35,8 +35,6 @@ import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.content.pm.PackageManager
 import android.content.pm.ApplicationInfo
@@ -1440,150 +1438,144 @@ open class StandardSystemOperationTools(private val context: Context) {
             val actualHighAccuracy = highAccuracy && hasFineLocationPermission
 
             // 使用Dispatchers.Main确保在主线程上执行位置操作
+            // 超时统一由 withTimeout 控制，超时与取消共用 invokeOnCancellation 的清理路径
+            // 超时时沿用最后已知位置：位置工具的既有语义是尽力返回最新可用位置，非错误兜底
+            var lastKnownLocationRef: Location? = null
             @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
             val locationResult =
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        kotlinx.coroutines.suspendCancellableCoroutine<Location?> { continuation ->
-                            val locationManager =
-                                    context.getSystemService(Context.LOCATION_SERVICE) as
-                                            LocationManager
+                    try {
+                        kotlinx.coroutines.withTimeout(timeout * 1000L) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            kotlinx.coroutines.suspendCancellableCoroutine<Location?> { continuation ->
+                                val locationManager =
+                                        context.getSystemService(Context.LOCATION_SERVICE) as
+                                                LocationManager
 
-                            // 选择合适的位置提供者
-                            val provider =
-                                    when {
-                                        actualHighAccuracy &&
-                                                locationManager.isProviderEnabled(
-                                                        LocationManager.GPS_PROVIDER
-                                                ) -> LocationManager.GPS_PROVIDER
-                                        locationManager.isProviderEnabled(
-                                                LocationManager.NETWORK_PROVIDER
-                                        ) -> LocationManager.NETWORK_PROVIDER
-                                        locationManager.isProviderEnabled(
-                                                LocationManager.PASSIVE_PROVIDER
-                                        ) -> LocationManager.PASSIVE_PROVIDER
-                                        else -> null
-                                    }
-
-                            if (provider == null) {
-                                continuation.resume(null) { AppLogger.e(TAG, "位置请求取消", it) }
-                                return@suspendCancellableCoroutine
-                            }
-
-                            // 尝试获取最后已知位置
-                            val lastKnownLocation =
-                                    try {
-                                        if (actualHighAccuracy && hasFineLocationPermission) {
-                                            locationManager.getLastKnownLocation(
-                                                    LocationManager.GPS_PROVIDER
-                                            )
-                                                    ?: locationManager.getLastKnownLocation(
-                                                            LocationManager.NETWORK_PROVIDER
-                                                    )
-                                        } else if (hasCoarseLocationPermission) {
-                                            locationManager.getLastKnownLocation(
+                                // 选择合适的位置提供者
+                                val provider =
+                                        when {
+                                            actualHighAccuracy &&
+                                                    locationManager.isProviderEnabled(
+                                                            LocationManager.GPS_PROVIDER
+                                                    ) -> LocationManager.GPS_PROVIDER
+                                            locationManager.isProviderEnabled(
                                                     LocationManager.NETWORK_PROVIDER
-                                            )
-                                                    ?: locationManager.getLastKnownLocation(
-                                                            LocationManager.PASSIVE_PROVIDER
-                                                    )
-                                        } else {
+                                            ) -> LocationManager.NETWORK_PROVIDER
+                                            locationManager.isProviderEnabled(
+                                                    LocationManager.PASSIVE_PROVIDER
+                                            ) -> LocationManager.PASSIVE_PROVIDER
+                                            else -> null
+                                        }
+
+                                if (provider == null) {
+                                    continuation.resume(null) { AppLogger.e(TAG, "位置请求取消", it) }
+                                    return@suspendCancellableCoroutine
+                                }
+
+                                // 尝试获取最后已知位置
+                                val lastKnownLocation =
+                                        try {
+                                            if (actualHighAccuracy && hasFineLocationPermission) {
+                                                locationManager.getLastKnownLocation(
+                                                        LocationManager.GPS_PROVIDER
+                                                )
+                                                        ?: locationManager.getLastKnownLocation(
+                                                                LocationManager.NETWORK_PROVIDER
+                                                        )
+                                            } else if (hasCoarseLocationPermission) {
+                                                locationManager.getLastKnownLocation(
+                                                        LocationManager.NETWORK_PROVIDER
+                                                )
+                                                        ?: locationManager.getLastKnownLocation(
+                                                                LocationManager.PASSIVE_PROVIDER
+                                                        )
+                                            } else {
+                                                null
+                                            }
+                                        } catch (e: SecurityException) {
+                                            AppLogger.e(TAG, "获取最后已知位置失败", e)
                                             null
                                         }
-                                    } catch (e: SecurityException) {
-                                        AppLogger.e(TAG, "获取最后已知位置失败", e)
-                                        null
-                                    }
+                                // 供 withTimeout 超时分支使用，见外层注释
+                                lastKnownLocationRef = lastKnownLocation
 
-                            // 如果有最后已知位置且足够新（10分钟内），直接返回
-                            if (lastKnownLocation != null &&
-                                            System.currentTimeMillis() - lastKnownLocation.time <
-                                                    10 * 60 * 1000
-                            ) {
-                                continuation.resume(lastKnownLocation) { AppLogger.e(TAG, "位置请求取消", it) }
-                                return@suspendCancellableCoroutine
-                            }
+                                // 如果有最后已知位置且足够新（10分钟内），直接返回
+                                if (lastKnownLocation != null &&
+                                                System.currentTimeMillis() - lastKnownLocation.time <
+                                                        10 * 60 * 1000
+                                ) {
+                                    continuation.resume(lastKnownLocation) { AppLogger.e(TAG, "位置请求取消", it) }
+                                    return@suspendCancellableCoroutine
+                                }
 
-                            // 否则请求位置更新
-                            val locationListener =
-                                    object : android.location.LocationListener {
-                                        override fun onLocationChanged(location: Location) {
-                                            locationManager.removeUpdates(this)
-                                            continuation.resume(location) {
-                                                AppLogger.e(TAG, "位置请求取消", it)
+                                // 否则请求位置更新
+                                val locationListener =
+                                        object : android.location.LocationListener {
+                                            override fun onLocationChanged(location: Location) {
+                                                locationManager.removeUpdates(this)
+                                                continuation.resume(location) {
+                                                    AppLogger.e(TAG, "位置请求取消", it)
+                                                }
                                             }
-                                        }
 
-                                        override fun onProviderDisabled(provider: String) {
-                                            // 如果提供者被禁用，尝试使用最后已知位置
-                                            if (!continuation.isCompleted) {
-                                                if (lastKnownLocation != null) {
-                                                    continuation.resume(lastKnownLocation) {
-                                                        AppLogger.e(TAG, "位置请求取消", it)
-                                                    }
-                                                } else {
-                                                    continuation.resume(null) {
-                                                        AppLogger.e(TAG, "位置请求取消", it)
+                                            override fun onProviderDisabled(provider: String) {
+                                                // 如果提供者被禁用，尝试使用最后已知位置
+                                                if (!continuation.isCompleted) {
+                                                    if (lastKnownLocation != null) {
+                                                        continuation.resume(lastKnownLocation) {
+                                                            AppLogger.e(TAG, "位置请求取消", it)
+                                                        }
+                                                    } else {
+                                                        continuation.resume(null) {
+                                                            AppLogger.e(TAG, "位置请求取消", it)
+                                                        }
                                                     }
                                                 }
                                             }
+
+                                            override fun onProviderEnabled(provider: String) {
+                                                // 不需要处理
+                                            }
+
+                                            @Deprecated("Deprecated in Java")
+                                            override fun onStatusChanged(
+                                                    provider: String,
+                                                    status: Int,
+                                                    extras: android.os.Bundle
+                                            ) {
+                                                // 不需要处理
+                                            }
                                         }
 
-                                        override fun onProviderEnabled(provider: String) {
-                                            // 不需要处理
-                                        }
+                                try {
+                                    // 设置位置请求参数
+                                    locationManager.requestLocationUpdates(
+                                            provider,
+                                            0, // 最小时间间隔
+                                            0f, // 最小距离变化
+                                            locationListener
+                                    )
 
-                                        @Deprecated("Deprecated in Java")
-                                        override fun onStatusChanged(
-                                                provider: String,
-                                                status: Int,
-                                                extras: android.os.Bundle
-                                        ) {
-                                            // 不需要处理
-                                        }
-                                    }
-
-                            try {
-                                // 设置位置请求参数
-                                locationManager.requestLocationUpdates(
-                                        provider,
-                                        0, // 最小时间间隔
-                                        0f, // 最小距离变化
-                                        locationListener
-                                )
-
-                                // 设置超时
-                                kotlinx.coroutines.GlobalScope.launch {
-                                    delay(timeout * 1000L)
-                                    // 在主线程上移除更新和恢复协程
-                                    kotlinx.coroutines.withContext(
-                                            kotlinx.coroutines.Dispatchers.Main
-                                    ) {
-                                        if (!continuation.isCompleted) {
-                                            locationManager.removeUpdates(locationListener)
-                                            // 如果超时，尝试使用最后已知位置
-                                            continuation.resume(lastKnownLocation) {
-                                                AppLogger.e(TAG, "位置请求取消", it)
+                                    // 如果协程被取消，移除位置更新
+                                    // 回调在发起取消的线程上同步执行：主线程发起取消时runBlocking(Main)等主线程自己调度，自死锁，故改post
+                                    continuation.invokeOnCancellation {
+                                        Handler(Looper.getMainLooper()).post {
+                                            try {
+                                                locationManager.removeUpdates(locationListener)
+                                            } catch (e: Exception) {
+                                                AppLogger.e(TAG, "移除位置更新失败", e)
                                             }
                                         }
                                     }
+                                } catch (e: SecurityException) {
+                                    continuation.resume(lastKnownLocation) { AppLogger.e(TAG, "位置请求取消", it) }
+                                    AppLogger.e(TAG, "请求位置更新失败", e)
                                 }
-
-                                // 如果协程被取消，移除位置更新
-                                continuation.invokeOnCancellation {
-                                    try {
-                                        // 确保在主线程上移除位置更新
-                                        kotlinx.coroutines.runBlocking(
-                                                kotlinx.coroutines.Dispatchers.Main
-                                        ) { locationManager.removeUpdates(locationListener) }
-                                    } catch (e: Exception) {
-                                        AppLogger.e(TAG, "移除位置更新失败", e)
-                                    }
-                                }
-                            } catch (e: SecurityException) {
-                                continuation.resume(lastKnownLocation) { AppLogger.e(TAG, "位置请求取消", it) }
-                                AppLogger.e(TAG, "请求位置更新失败", e)
                             }
                         }
+                        }
+                    } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                        lastKnownLocationRef
                     }
 
             // 处理位置结果

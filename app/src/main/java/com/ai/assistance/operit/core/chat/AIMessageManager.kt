@@ -435,7 +435,8 @@ object AIMessageManager {
                     replay = Int.MAX_VALUE,
                     onComplete = {
                         activeMessageProcessingControllerByChatId.remove(chatKey)
-                        activeEnhancedAiServiceByChatId.remove(chatKey)
+                        // 两参 remove 校验实例身份：并发请求时先完成者不会误删后注册者的服务引用
+                        activeEnhancedAiServiceByChatId.remove(chatKey, enhancedAiService)
                     }
                 )
                 logMessageTiming(
@@ -493,7 +494,8 @@ object AIMessageManager {
                 replay = Int.MAX_VALUE,
                 onComplete = {
                     activeMessageProcessingControllerByChatId.remove(chatKey)
-                    activeEnhancedAiServiceByChatId.remove(chatKey)
+                    // 两参 remove 校验实例身份：并发请求时先完成者不会误删后注册者的服务引用
+                    activeEnhancedAiServiceByChatId.remove(chatKey, enhancedAiService)
                 }
             )
             logMessageTiming(

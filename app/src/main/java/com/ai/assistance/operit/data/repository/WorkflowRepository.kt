@@ -483,12 +483,15 @@ class WorkflowRepository(private val context: Context) {
             return@withContext Result.failure(Exception(context.getString(R.string.workflow_disabled_message, workflow.name)))
         }
 
-        if (getRunningWorkflowJobs(id).isNotEmpty()) {
-            return@withContext Result.failure(Exception(context.getString(R.string.workflow_already_running, workflow.name)))
-        }
-
         val workflowJob = currentCoroutineContext().job
-        registerRunningWorkflow(id, workflowJob)
+        // 防重检查与注册必须在同一监视器锁内原子完成：两步分离时并发触发会双双通过检查，同一工作流被执行两次。
+        // getRunningWorkflowJobs 与 registerRunningWorkflow 自身也锁 runningWorkflowLock，synchronized 可重入不会死锁，且锁内均为纯内存操作
+        synchronized(runningWorkflowLock) {
+            if (getRunningWorkflowJobs(id).isNotEmpty()) {
+                return@withContext Result.failure(Exception(context.getString(R.string.workflow_already_running, workflow.name)))
+            }
+            registerRunningWorkflow(id, workflowJob)
+        }
 
         try {
             AppLogger.d(TAG, "Triggering workflow: ${workflow.name} (${workflow.id})")

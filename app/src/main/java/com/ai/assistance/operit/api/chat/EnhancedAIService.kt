@@ -3038,7 +3038,8 @@ class EnhancedAIService private constructor(private val context: Context) {
         }
     }
 
-    private fun notifyReplyCompleted(
+    // 转发的静态方法已改为 suspend（DataStore 读取），本包装同步调整
+    private suspend fun notifyReplyCompleted(
         chatId: String?,
         characterName: String? = null,
         notifyReplyOverride: Boolean? = null

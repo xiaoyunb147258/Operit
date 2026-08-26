@@ -13,6 +13,8 @@ import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
@@ -37,6 +39,7 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
     companion object {
         private const val TAG = "RootShellExecutor"
         private var rootAvailable: Boolean? = null
+        private const val COMMAND_TIMEOUT = 30L // 秒，与 StandardShellExecutor 保持一致
         
         // 静态初始化，确保Shell配置只被设置一次
         init {
@@ -305,42 +308,47 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
 
                 // 执行su -c命令
                 val process = Runtime.getRuntime().exec(buildSuExecCommand(command))
-                
-                // 读取标准输出
-                val stdoutReader = BufferedReader(InputStreamReader(process.inputStream))
-                val stdout = StringBuilder()
-                var line: String?
-                while (stdoutReader.readLine().also { line = it } != null) {
-                    stdout.append(line).append("\n")
+
+                return@withContext coroutineScope {
+                    // 两个流必须并发读取：任一顺序读都会在另一流写满管道缓冲区时死锁
+                    val stdout = async(Dispatchers.IO) {
+                        process.inputStream.bufferedReader().use { it.readText() }
+                    }
+                    val stderr = async(Dispatchers.IO) {
+                        process.errorStream.bufferedReader().use { it.readText() }
+                    }
+
+                    // waitFor 必须带超时且在读流之后：否则子进程挂起时这里永久阻塞
+                    val completed = process.waitFor(COMMAND_TIMEOUT, TimeUnit.SECONDS)
+                    if (!completed) {
+                        process.destroy()
+                        return@coroutineScope ShellExecutor.CommandResult(
+                            false,
+                            "",
+                            "Command timed out after $COMMAND_TIMEOUT seconds",
+                            -1
+                        )
+                    }
+
+                    val exitCode = process.exitValue()
+                    val stdoutStr = stdout.await().trimEnd()
+                    val stderrStr = stderr.await().trimEnd()
+
+                    AppLogger.d(TAG, "exec执行完成，退出码: $exitCode")
+                    if (stdoutStr.isNotEmpty()) {
+                        AppLogger.v(TAG, "标准输出: $stdoutStr")
+                    }
+                    if (stderrStr.isNotEmpty()) {
+                        AppLogger.v(TAG, "标准错误: $stderrStr")
+                    }
+
+                    ShellExecutor.CommandResult(
+                        exitCode == 0,
+                        stdoutStr,
+                        stderrStr,
+                        exitCode
+                    )
                 }
-                
-                // 读取标准错误
-                val stderrReader = BufferedReader(InputStreamReader(process.errorStream))
-                val stderr = StringBuilder()
-                while (stderrReader.readLine().also { line = it } != null) {
-                    stderr.append(line).append("\n")
-                }
-                
-                // 等待进程完成并获取退出码
-                val exitCode = process.waitFor()
-                
-                val stdoutStr = stdout.toString().trimEnd()
-                val stderrStr = stderr.toString().trimEnd()
-                
-                AppLogger.d(TAG, "exec执行完成，退出码: $exitCode")
-                if (stdoutStr.isNotEmpty()) {
-                    AppLogger.v(TAG, "标准输出: $stdoutStr")
-                }
-                if (stderrStr.isNotEmpty()) {
-                    AppLogger.v(TAG, "标准错误: $stderrStr")
-                }
-                
-                return@withContext ShellExecutor.CommandResult(
-                    exitCode == 0,
-                    stdoutStr,
-                    stderrStr,
-                    exitCode
-                )
             } catch (e: Exception) {
                 AppLogger.e(TAG, "使用exec执行Root命令时出错", e)
                 return@withContext ShellExecutor.CommandResult(
@@ -385,38 +393,46 @@ class RootShellExecutor(private val context: Context) : ShellExecutor {
                                     val fullCmd = "$launcherPath $actualCommand"
                                     val process = Runtime.getRuntime().exec(buildSuExecCommand(fullCmd))
 
-                                    val stdoutReader = BufferedReader(InputStreamReader(process.inputStream))
-                                    val stdout = StringBuilder()
-                                    var line: String?
-                                    while (stdoutReader.readLine().also { line = it } != null) {
-                                        stdout.append(line).append("\n")
+                                    coroutineScope {
+                                        // 两个流必须并发读取：任一顺序读都会在另一流写满管道缓冲区时死锁
+                                        val stdout = async(Dispatchers.IO) {
+                                            process.inputStream.bufferedReader().use { it.readText() }
+                                        }
+                                        val stderr = async(Dispatchers.IO) {
+                                            process.errorStream.bufferedReader().use { it.readText() }
+                                        }
+
+                                        // waitFor 必须带超时且在读流之后：否则子进程挂起时这里永久阻塞
+                                        val completed = process.waitFor(COMMAND_TIMEOUT, TimeUnit.SECONDS)
+                                        if (!completed) {
+                                            process.destroy()
+                                            return@coroutineScope ShellExecutor.CommandResult(
+                                                false,
+                                                "",
+                                                "Command timed out after $COMMAND_TIMEOUT seconds",
+                                                -1
+                                            )
+                                        }
+
+                                        val exitCode = process.exitValue()
+                                        val stdoutStr = stdout.await().trimEnd()
+                                        val stderrStr = stderr.await().trimEnd()
+
+                                        AppLogger.d(TAG, "shell launcher命令(exec)执行完成，退出码: $exitCode")
+                                        if (stdoutStr.isNotEmpty()) {
+                                            AppLogger.v(TAG, "标准输出: $stdoutStr")
+                                        }
+                                        if (stderrStr.isNotEmpty()) {
+                                            AppLogger.v(TAG, "标准错误: $stderrStr")
+                                        }
+
+                                        ShellExecutor.CommandResult(
+                                            exitCode == 0,
+                                            stdoutStr,
+                                            stderrStr,
+                                            exitCode
+                                        )
                                     }
-
-                                    val stderrReader = BufferedReader(InputStreamReader(process.errorStream))
-                                    val stderr = StringBuilder()
-                                    while (stderrReader.readLine().also { line = it } != null) {
-                                        stderr.append(line).append("\n")
-                                    }
-
-                                    val exitCode = process.waitFor()
-
-                                    val stdoutStr = stdout.toString().trimEnd()
-                                    val stderrStr = stderr.toString().trimEnd()
-
-                                    AppLogger.d(TAG, "shell launcher命令(exec)执行完成，退出码: $exitCode")
-                                    if (stdoutStr.isNotEmpty()) {
-                                        AppLogger.v(TAG, "标准输出: $stdoutStr")
-                                    }
-                                    if (stderrStr.isNotEmpty()) {
-                                        AppLogger.v(TAG, "标准错误: $stderrStr")
-                                    }
-
-                                    ShellExecutor.CommandResult(
-                                        exitCode == 0,
-                                        stdoutStr,
-                                        stderrStr,
-                                        exitCode
-                                    )
                                 } else {
                                     val shellCommand = "$launcherPath $actualCommand"
                                     val shellResult = Shell.cmd(shellCommand).exec()

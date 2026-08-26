@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.room.withTransaction
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.backup.OperitBackupDirs
 import com.ai.assistance.operit.data.db.AppDatabase
@@ -570,13 +571,6 @@ class ChatHistoryManager private constructor(private val context: Context) {
                 // 创建聊天实体
                 val chatEntity = ChatEntity.fromChatHistory(history)
 
-                // 保存聊天实体
-                chatDao.insertChat(chatEntity)
-
-                // 先删除该聊天的所有现有消息
-                messageDao.deleteAllMessagesForChat(chatEntity.id)
-                messageVariantDao.deleteAllVariantsForChat(chatEntity.id)
-
                 // 批量插入所有消息
                 val messageEntities =
                     history.messages.mapIndexed { index, message ->
@@ -597,7 +591,6 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             index,
                         )
                     }
-                messageDao.insertMessages(messageEntities)
 
                 val variantEntities =
                     history.messages.flatMap { message ->
@@ -611,8 +604,20 @@ class ChatHistoryManager private constructor(private val context: Context) {
                                 )
                             }
                     }
-                if (variantEntities.isNotEmpty()) {
-                    messageVariantDao.insertVariants(variantEntities)
+
+                // 删除与插入必须在同一事务：中断后旧消息已删而新消息未插，该聊天消息永久丢失
+                database.withTransaction {
+                    // 保存聊天实体
+                    chatDao.insertChat(chatEntity)
+
+                    // 先删除该聊天的所有现有消息
+                    messageDao.deleteAllMessagesForChat(chatEntity.id)
+                    messageVariantDao.deleteAllVariantsForChat(chatEntity.id)
+
+                    messageDao.insertMessages(messageEntities)
+                    if (variantEntities.isNotEmpty()) {
+                        messageVariantDao.insertVariants(variantEntities)
+                    }
                 }
             } catch (e: Exception) {
                 throw e
@@ -995,81 +1000,84 @@ class ChatHistoryManager private constructor(private val context: Context) {
                     throw IllegalStateException("Message $messageTimestamp has no deletable variants")
                 }
 
-                if (variantIndex == 0) {
-                    val replacementVariant =
-                        variants.firstOrNull()
-                            ?: throw IllegalStateException(
-                                "Message $messageTimestamp has no replacement variant",
+                // 删除、重排、更新选中索引必须在同一事务：中断后 selectedVariantIndex 指向已删除的 variant，加载会话时严格匹配直接失败
+                database.withTransaction {
+                    if (variantIndex == 0) {
+                        val replacementVariant =
+                            variants.firstOrNull()
+                                ?: throw IllegalStateException(
+                                    "Message $messageTimestamp has no replacement variant",
+                                )
+                        val promotedBaseMessage =
+                            baseMessage.copy(
+                                content = replacementVariant.content,
+                                roleName = replacementVariant.roleName.ifBlank { baseMessage.roleName },
+                                selectedVariantIndex = 0,
+                                provider = replacementVariant.provider,
+                                modelName = replacementVariant.modelName,
+                                inputTokens = replacementVariant.inputTokens,
+                                outputTokens = replacementVariant.outputTokens,
+                                cachedInputTokens = replacementVariant.cachedInputTokens,
+                                sentAt = replacementVariant.sentAt,
+                                outputDurationMs = replacementVariant.outputDurationMs,
+                                waitDurationMs = replacementVariant.waitDurationMs,
+                                completedAt = replacementVariant.completedAt,
                             )
-                    val promotedBaseMessage =
-                        baseMessage.copy(
-                            content = replacementVariant.content,
-                            roleName = replacementVariant.roleName.ifBlank { baseMessage.roleName },
-                            selectedVariantIndex = 0,
-                            provider = replacementVariant.provider,
-                            modelName = replacementVariant.modelName,
-                            inputTokens = replacementVariant.inputTokens,
-                            outputTokens = replacementVariant.outputTokens,
-                            cachedInputTokens = replacementVariant.cachedInputTokens,
-                            sentAt = replacementVariant.sentAt,
-                            outputDurationMs = replacementVariant.outputDurationMs,
-                            waitDurationMs = replacementVariant.waitDurationMs,
-                            completedAt = replacementVariant.completedAt,
+                        messageDao.updateMessage(promotedBaseMessage)
+                        messageVariantDao.deleteVariant(
+                            chatId = chatId,
+                            messageTimestamp = messageTimestamp,
+                            variantIndex = replacementVariant.variantIndex,
                         )
-                    messageDao.updateMessage(promotedBaseMessage)
-                    messageVariantDao.deleteVariant(
-                        chatId = chatId,
-                        messageTimestamp = messageTimestamp,
-                        variantIndex = replacementVariant.variantIndex,
-                    )
-                    variants
-                        .asSequence()
-                        .filter { it.variantIndex > replacementVariant.variantIndex }
-                        .forEach { variant ->
-                            messageVariantDao.updateVariant(
-                                variant.copy(variantIndex = variant.variantIndex - 1),
-                            )
-                        }
-                } else {
-                    val targetVariant =
-                        variants.firstOrNull { it.variantIndex == variantIndex }
-                            ?: throw IllegalArgumentException(
-                                "Variant $variantIndex does not exist for message $messageTimestamp",
-                            )
-                    messageVariantDao.deleteVariant(
-                        chatId = chatId,
-                        messageTimestamp = messageTimestamp,
-                        variantIndex = targetVariant.variantIndex,
-                    )
-                    variants
-                        .asSequence()
-                        .filter { it.variantIndex > targetVariant.variantIndex }
-                        .forEach { variant ->
-                            messageVariantDao.updateVariant(
-                                variant.copy(variantIndex = variant.variantIndex - 1),
-                            )
-                        }
-                    val newSelectedVariantIndex =
-                        when {
-                            variants.any { it.variantIndex > targetVariant.variantIndex } -> targetVariant.variantIndex
-                            else -> (targetVariant.variantIndex - 1).coerceAtLeast(0)
-                        }
-                    messageDao.updateSelectedVariantIndex(
-                        chatId = chatId,
-                        timestamp = messageTimestamp,
-                        selectedVariantIndex = newSelectedVariantIndex,
-                    )
-                }
+                        variants
+                            .asSequence()
+                            .filter { it.variantIndex > replacementVariant.variantIndex }
+                            .forEach { variant ->
+                                messageVariantDao.updateVariant(
+                                    variant.copy(variantIndex = variant.variantIndex - 1),
+                                )
+                            }
+                    } else {
+                        val targetVariant =
+                            variants.firstOrNull { it.variantIndex == variantIndex }
+                                ?: throw IllegalArgumentException(
+                                    "Variant $variantIndex does not exist for message $messageTimestamp",
+                                )
+                        messageVariantDao.deleteVariant(
+                            chatId = chatId,
+                            messageTimestamp = messageTimestamp,
+                            variantIndex = targetVariant.variantIndex,
+                        )
+                        variants
+                            .asSequence()
+                            .filter { it.variantIndex > targetVariant.variantIndex }
+                            .forEach { variant ->
+                                messageVariantDao.updateVariant(
+                                    variant.copy(variantIndex = variant.variantIndex - 1),
+                                )
+                            }
+                        val newSelectedVariantIndex =
+                            when {
+                                variants.any { it.variantIndex > targetVariant.variantIndex } -> targetVariant.variantIndex
+                                else -> (targetVariant.variantIndex - 1).coerceAtLeast(0)
+                            }
+                        messageDao.updateSelectedVariantIndex(
+                            chatId = chatId,
+                            timestamp = messageTimestamp,
+                            selectedVariantIndex = newSelectedVariantIndex,
+                        )
+                    }
 
-                chatDao.getChatById(chatId)?.let { chat ->
-                    chatDao.updateChatMetadata(
-                        chatId = chatId,
-                        title = chat.title,
-                        timestamp = System.currentTimeMillis(),
-                        inputTokens = chat.inputTokens,
-                        outputTokens = chat.outputTokens,
-                        currentWindowSize = chat.currentWindowSize,
-                    )
+                    chatDao.getChatById(chatId)?.let { chat ->
+                        chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize,
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 AppLogger.e(
@@ -1080,6 +1088,29 @@ class ChatHistoryManager private constructor(private val context: Context) {
                 throw e
             }
         }
+    }
+
+    /**
+     * 一次性修复存量脏数据：selectedVariantIndex 指向已删除 variant 的消息，
+     * 由引入事务前的变体删除中断产生。将越界索引截断到 0..(variantCount-1) 并落库，
+     * 返回修复的消息条数。这不是运行时兜底：事务修复上线后不应再产生新的此类数据。
+     */
+    suspend fun repairOrphanedSelectedVariantIndexes(): Int {
+        val repairedCount = database.withTransaction {
+            val orphanedSelections = messageDao.getOrphanedVariantSelections()
+            orphanedSelections.forEach { selection ->
+                messageDao.updateSelectedVariantIndex(
+                    chatId = selection.chatId,
+                    timestamp = selection.timestamp,
+                    selectedVariantIndex = selection.selectedVariantIndex.coerceIn(0, selection.variantCount - 1),
+                )
+            }
+            orphanedSelections.size
+        }
+        if (repairedCount > 0) {
+            AppLogger.i(TAG, "已修复 $repairedCount 条 selectedVariantIndex 越界的消息")
+        }
+        return repairedCount
     }
 
     // 更新现有消息
@@ -1269,20 +1300,23 @@ class ChatHistoryManager private constructor(private val context: Context) {
         chatMutex(chatId).withLock {
             try {
                 AppLogger.d(TAG, "正在从数据库删除消息. ChatId: $chatId, Timestamp >=: $timestamp")
-                messageVariantDao.deleteVariantsFrom(chatId, timestamp)
-                messageDao.deleteMessagesFrom(chatId, timestamp)
-                AppLogger.d(TAG, "后续消息从数据库删除成功.")
-                // 更新聊天元数据时间戳
-                chatDao.getChatById(chatId)?.let { chat ->
-                    chatDao.updateChatMetadata(
-                        chatId = chatId,
-                        title = chat.title,
-                        timestamp = System.currentTimeMillis(),
-                        inputTokens = chat.inputTokens,
-                        outputTokens = chat.outputTokens,
-                        currentWindowSize = chat.currentWindowSize
-                    )
+                // variants 与 messages 必须同事务删除：中断后 variants 残留成孤儿，与消息表永久不一致
+                database.withTransaction {
+                    messageVariantDao.deleteVariantsFrom(chatId, timestamp)
+                    messageDao.deleteMessagesFrom(chatId, timestamp)
+                    // 更新聊天元数据时间戳
+                    chatDao.getChatById(chatId)?.let { chat ->
+                        chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize
+                        )
+                    }
                 }
+                AppLogger.d(TAG, "后续消息从数据库删除成功.")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "从 $timestamp 开始为聊天 $chatId 删除消息失败", e)
                 throw e
@@ -2156,7 +2190,9 @@ class ChatHistoryManager private constructor(private val context: Context) {
                 if (!isZipProcessed) {
                     AppLogger.d(TAG, "使用指定格式导入: $format")
                     if (format == ChatFormat.OPERIT) {
-                        val existingIds = chatHistoriesFlow.first().map { it.id }.toMutableSet()
+                        // 冷启动后 stateIn(Lazily) 的共享流尚未发射，取已有 id 必须直查 DAO，
+                        // 否则空列表会把所有已存在会话误计为新增
+                        val existingIds = chatDao.getAllChatIds().toHashSet()
                         val inputStream =
                             context.contentResolver.openInputStream(uri)
                                 ?: return@withContext ChatImportResult(0, 0, 0)
@@ -2182,8 +2218,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                     return@withContext ChatImportResult(0, 0, 0)
                 }
 
-                // 保存导入的对话
-                val existingIds = chatHistoriesFlow.first().map { it.id }.toMutableSet()
+                // 保存导入的对话（同上：直查 DAO 取已有 id，不依赖冷启动可能未发射的共享流）
+                val existingIds = chatDao.getAllChatIds().toHashSet()
 
                 var newCount = 0
                 var updatedCount = 0

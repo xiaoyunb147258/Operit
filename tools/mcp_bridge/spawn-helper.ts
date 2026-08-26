@@ -48,7 +48,13 @@ const handlers = {
                 ...(serviceInfo.env?.npm_config_cache ? {} : { npm_config_cache: path.join(workingDir, '.npm-cache') }),
                 ...(serviceInfo.env?.npm_config_prefer_offline ? {} : { npm_config_prefer_offline: 'true' }),
                 ...(serviceInfo.env?.UV_LINK_MODE ? {} : { UV_LINK_MODE: 'copy' }),
-                ...(os.platform() === 'linux' ? { NODE_OPTIONS: '--openssl-legacy-provider' } : {}),
+                // 仅在两边都未提供 NODE_OPTIONS 时才注入默认值，避免覆盖用户配置；
+                // 且 Node 16 不认识 --openssl-legacy-provider，会因 bad option 启动失败
+                ...(os.platform() === 'linux'
+                    && !process.env.NODE_OPTIONS
+                    && !serviceInfo.env?.NODE_OPTIONS
+                    ? { NODE_OPTIONS: '--openssl-legacy-provider' }
+                    : {}),
             };
 
             const transport = new StdioClientTransport({
@@ -70,12 +76,11 @@ const handlers = {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             console.error(`[${serviceName}] Helper connection failed: ${errorMessage}`);
+            // send 是异步写管道，必须等回调确认写出后再退出，否则致命消息会随进程一起丢失
             process.send!({
                 event: 'closed',
                 params: { serviceName, error: errorMessage }
-            });
-            // Exit after sending error to allow parent to restart
-            process.exit(1);
+            }, () => process.exit(1));
         }
     },
 
@@ -178,8 +183,7 @@ process.on('uncaughtException', (err) => {
     process.send!({
         event: 'closed',
         params: { serviceName, error: `Uncaught exception: ${err.message}` }
-    });
-    process.exit(1);
+    }, () => process.exit(1));
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -187,8 +191,7 @@ process.on('unhandledRejection', (reason, promise) => {
     process.send!({
         event: 'closed',
         params: { serviceName, error: `Unhandled rejection: ${reason}` }
-    });
-    process.exit(1);
+    }, () => process.exit(1));
 });
 
 console.log('Spawn helper process started.');

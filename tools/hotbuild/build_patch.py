@@ -324,7 +324,7 @@ def get_token(cli_token: Optional[str]) -> Optional[str]:
 
 
 def run(args: list[str]) -> tuple[int, str, str]:
-    p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     return p.returncode, p.stdout, p.stderr
 
 

@@ -45,10 +45,22 @@ class MemoryQueryToolExecutor(private val context: Context) : ToolExecutor {
 
         private val querySnapshotsByProfile =
             ConcurrentHashMap<String, ConcurrentHashMap<String, QuerySnapshotState>>()
-    }
 
-    private val memoryRepositories = ConcurrentHashMap<String, MemoryRepository>()
-    private val settingsRepositories = ConcurrentHashMap<String, MemorySearchSettingsPreferences>()
+        // 执行器实例由 ToolGetter 按次新建，仓库缓存必须静态持有才能跨调用复用，
+        // 也让记忆空间删除流程可以通过静态入口失效缓存
+        private val memoryRepositories = ConcurrentHashMap<String, MemoryRepository>()
+        private val settingsRepositories = ConcurrentHashMap<String, MemorySearchSettingsPreferences>()
+
+        /**
+         * 记忆空间删除后其 ObjectBox Store 已被关闭，缓存的 MemoryRepository 不可再用，
+         * 由删除入口显式调用以丢弃该 profileId 的全部缓存条目。
+         */
+        fun invalidateProfileCache(profileId: String) {
+            memoryRepositories.remove(profileId)
+            settingsRepositories.remove(profileId)
+            querySnapshotsByProfile.remove(profileId)
+        }
+    }
 
     private fun resolveActiveMemorySpaceId(): String {
         return kotlinx.coroutines.runBlocking { preferencesManager.activeMemorySpaceIdFlow.first() }

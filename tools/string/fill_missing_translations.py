@@ -205,24 +205,22 @@ def _remove_stale_strings(file_path: Path, stale_keys: set[str]) -> int:
     removed: set[str] = set()
 
     def remove_if_stale(match: re.Match[str]) -> str:
-        attrs = match.group(1)
+        # 两分支各有一个属性捕获组，命中的分支取其一，未参与的分支捕获组为 None
+        attrs = match.group(1) or match.group(2)
         name_match = re.search(r'\bname\s*=\s*"([^"]+)"', attrs)
         if name_match and name_match.group(1) in stale_keys:
             removed.add(name_match.group(1))
             return ""
         return match.group(0)
 
+    # 自闭合分支必须在前：配对分支的属性组 [^>]* 会连 "/" 一起吞掉，
+    # 导致非贪婪体越过自闭合标签匹配到下一个 </string>，误删相邻条目
     string_pattern = re.compile(
-        r'^[ \t]*<string(?=\s|>|/)([^>]*)>.*?</string>[ \t]*(?:\r?\n)?',
+        r'^[ \t]*<string(?=\s|>|/)([^>]*?)/>[ \t]*(?:\r?\n)?'
+        r'|^[ \t]*<string(?=\s|>)([^>]*)>.*?</string>[ \t]*(?:\r?\n)?',
         re.MULTILINE | re.DOTALL,
     )
     updated = string_pattern.sub(remove_if_stale, original)
-
-    empty_string_pattern = re.compile(
-        r'^[ \t]*<string(?=\s|>|/)([^>]*)/\s*>[ \t]*(?:\r?\n)?',
-        re.MULTILINE,
-    )
-    updated = empty_string_pattern.sub(remove_if_stale, updated)
 
     if removed:
         file_path.write_text(updated, encoding="utf-8")

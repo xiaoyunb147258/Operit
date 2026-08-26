@@ -399,6 +399,8 @@ object ToolExecutionManager {
         }
 
         return executor.invokeAndStream(invocation.tool).catch { e ->
+            // 取消异常必须重抛，否则用户停止会被记为工具执行错误
+            if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e(TAG, "Tool execution error: ${invocation.tool.name}", e)
             toolHandler?.notifyToolExecutionError(invocation.tool, e)
             emit(

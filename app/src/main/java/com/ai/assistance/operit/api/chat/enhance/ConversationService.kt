@@ -368,6 +368,8 @@ class ConversationService(
 
             title
         } catch (e: Exception) {
+            // 取消异常必须重抛，否则用户主动停止会被记为标题生成失败
+            if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e(TAG, "生成对话标题时出错", e)
             ""
         }
@@ -1143,6 +1145,8 @@ ${FunctionalPrompts.translationUserPrompt(targetLanguage, text)}
                 result
             }
         } catch (e: Exception) {
+            // 取消异常必须重抛，否则用户主动停止会被记为生成失败
+            if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e(TAG, "生成工具包描述时出错", e)
             return ""
         }
@@ -1195,6 +1199,8 @@ ${FunctionalPrompts.translationUserPrompt(targetLanguage, text)}
             
             ChatUtils.removeThinkingContent(result.toString()).trim()
         } catch (e: Exception) {
+            // 取消异常必须重抛，否则用户主动停止会被记为识别失败
+            if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e(TAG, "识图分析失败", e)
             "Image recognition failed: ${e.message}"
         }
@@ -1238,6 +1244,8 @@ ${FunctionalPrompts.translationUserPrompt(targetLanguage, text)}
             com.ai.assistance.operit.util.MediaPoolManager.removeMedia(mediaId)
             ChatUtils.removeThinkingContent(result.toString()).trim()
         } catch (e: Exception) {
+            // 取消异常必须重抛，否则用户主动停止会被记为识别失败
+            if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e(TAG, "音频识别失败", e)
             "Audio recognition failed: ${e.message}"
         }
@@ -1281,6 +1289,8 @@ ${FunctionalPrompts.translationUserPrompt(targetLanguage, text)}
             com.ai.assistance.operit.util.MediaPoolManager.removeMedia(mediaId)
             ChatUtils.removeThinkingContent(result.toString()).trim()
         } catch (e: Exception) {
+            // 取消异常必须重抛，否则用户主动停止会被记为识别失败
+            if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e(TAG, "视频识别失败", e)
             "Video recognition failed: ${e.message}"
         }

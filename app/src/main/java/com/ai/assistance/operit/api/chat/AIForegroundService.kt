@@ -61,7 +61,6 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
@@ -233,7 +232,8 @@ class AIForegroundService : Service() {
             return channelId
         }
 
-        fun notifyReplyCompleted(
+        // 通知偏好存于 DataStore，读取需挂起；调用方（EnhancedAIService 收尾链路）已在协程内
+        suspend fun notifyReplyCompleted(
             context: Context,
             chatId: String?,
             characterName: String?,
@@ -250,9 +250,8 @@ class AIForegroundService : Service() {
 
                 val appContext = context.applicationContext
                 val displayPreferences = DisplayPreferencesManager.getInstance(appContext)
-                val globalEnableReplyNotification = runBlocking {
+                val globalEnableReplyNotification =
                     displayPreferences.enableReplyNotification.first()
-                }
                 val shouldNotify = notifyReplyOverride ?: globalEnableReplyNotification
                 if (!shouldNotify) {
                     AppLogger.d(TAG, "回复通知已禁用，跳过发送")
@@ -264,12 +263,10 @@ class AIForegroundService : Service() {
                     return
                 }
 
-                val enableReplyNotificationSound = runBlocking {
+                val enableReplyNotificationSound =
                     displayPreferences.enableReplyNotificationSound.first()
-                }
-                val enableReplyNotificationVibration = runBlocking {
+                val enableReplyNotificationVibration =
                     displayPreferences.enableReplyNotificationVibration.first()
-                }
                 val replyChannelId =
                     ensureReplyNotificationChannel(
                         context = appContext,
@@ -359,7 +356,8 @@ class AIForegroundService : Service() {
             }
         }
 
-        fun ensureMicrophoneForeground(context: Context, forceStart: Boolean = false) {
+        // 持久职责判断需读 DataStore，须在协程内调用；主线程调用方须自行投递到协程
+        suspend fun ensureMicrophoneForeground(context: Context, forceStart: Boolean = false) {
             val appContext = context.applicationContext
             if (!forceStart && !isRunning.get() && !hasPersistentForegroundResponsibilityConfigured(appContext)) {
                 return
@@ -383,12 +381,11 @@ class AIForegroundService : Service() {
             }
         }
 
-        fun refreshBackgroundKeepAlive(context: Context) {
+        // 调用方（设置页开关回调）已在协程内，直接挂起读取 DataStore
+        suspend fun refreshBackgroundKeepAlive(context: Context) {
             val appContext = context.applicationContext
             val keepAliveEnabled = runCatching {
-                runBlocking {
-                    DisplayPreferencesManager.getInstance(appContext).enableBackgroundKeepAlive.first()
-                }
+                DisplayPreferencesManager.getInstance(appContext).enableBackgroundKeepAlive.first()
             }.getOrDefault(false)
             if (!keepAliveEnabled && !isRunning.get()) {
                 return
@@ -427,17 +424,13 @@ class AIForegroundService : Service() {
             }
         }
 
-        private fun hasPersistentForegroundResponsibilityConfigured(context: Context): Boolean {
+        private suspend fun hasPersistentForegroundResponsibilityConfigured(context: Context): Boolean {
             val appContext = context.applicationContext
             val alwaysListeningEnabled = runCatching {
-                runBlocking {
-                    WakeWordPreferences(appContext).alwaysListeningEnabledFlow.first()
-                }
+                WakeWordPreferences(appContext).alwaysListeningEnabledFlow.first()
             }.getOrDefault(false)
             val backgroundKeepAliveEnabled = runCatching {
-                runBlocking {
-                    DisplayPreferencesManager.getInstance(appContext).enableBackgroundKeepAlive.first()
-                }
+                DisplayPreferencesManager.getInstance(appContext).enableBackgroundKeepAlive.first()
             }.getOrDefault(false)
             return alwaysListeningEnabled || backgroundKeepAliveEnabled
         }
@@ -708,7 +701,8 @@ class AIForegroundService : Service() {
 
     private var lastSpeechWorkflowCheckAtMs: Long = 0L
 
-    private fun ensureWakeSpeechProvider(): SpeechService {
+    // createWakeSpeechService 需挂起读 profile，调用点均在协程/suspend 链路内
+    private suspend fun ensureWakeSpeechProvider(): SpeechService {
         val existing = wakeSpeechProvider
         if (existing != null) return existing
         return SpeechServiceFactory.createWakeSpeechService(applicationContext).also {
@@ -733,7 +727,8 @@ class AIForegroundService : Service() {
         manager.notify(NOTIFICATION_ID, createNotification())
     }
 
-    private fun stopSelfIfIdle(ignoreAppForeground: Boolean = false) {
+    // 空闲判断需真实读取 DataStore，须在协程内调用
+    private suspend fun stopSelfIfIdle(ignoreAppForeground: Boolean = false) {
         val alwaysListeningEnabled = wakeListeningEnabled || isAlwaysListeningEnabledNow()
         if (isAiBusy || alwaysListeningEnabled || backgroundKeepAliveEnabled) {
             return
@@ -868,9 +863,9 @@ class AIForegroundService : Service() {
         }
     }
 
-    private fun isAlwaysListeningEnabledNow(): Boolean {
+    private suspend fun isAlwaysListeningEnabledNow(): Boolean {
         return try {
-            runBlocking { wakePrefs.alwaysListeningEnabledFlow.first() }
+            wakePrefs.alwaysListeningEnabledFlow.first()
         } catch (_: Exception) {
             false
         }
@@ -977,7 +972,10 @@ class AIForegroundService : Service() {
                     AppLogger.w(TAG, "ensure microphone foreground failed", e)
                 }
             }
-            stopSelfIfIdle(ignoreAppForeground = true)
+            // 空闲判断需读 DataStore，移入协程异步执行，避免阻塞主线程
+            serviceScope.launch {
+                stopSelfIfIdle(ignoreAppForeground = true)
+            }
             return START_NOT_STICKY
         }
 
@@ -1064,17 +1062,21 @@ class AIForegroundService : Service() {
             val state = it.getStringExtra(EXTRA_STATE)
             if (state != null) {
                 updateAiBusyState(state == STATE_RUNNING)
-                val alwaysListeningEnabled = isAlwaysListeningEnabledNow()
-                if (!isAiBusy &&
-                    !alwaysListeningEnabled &&
-                    !backgroundKeepAliveEnabled
-                ) {
-                    AppLogger.d(TAG, "服务进入空闲且无持久后台职责，停止前台服务并移除通知")
-                    stopSelfIfIdle(ignoreAppForeground = true)
-                    return START_NOT_STICKY
+                // 停止/刷新的决策依赖 DataStore 实时值，整体移入协程，避免主线程阻塞读取
+                serviceScope.launch {
+                    val alwaysListeningEnabled = isAlwaysListeningEnabledNow()
+                    if (!isAiBusy &&
+                        !alwaysListeningEnabled &&
+                        !backgroundKeepAliveEnabled
+                    ) {
+                        AppLogger.d(TAG, "服务进入空闲且无持久后台职责，停止前台服务并移除通知")
+                        stopSelfIfIdle(ignoreAppForeground = true)
+                    } else {
+                        val manager =
+                            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        manager.notify(NOTIFICATION_ID, createNotification())
+                    }
                 }
-                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                manager.notify(NOTIFICATION_ID, createNotification())
             }
         }
         return START_NOT_STICKY

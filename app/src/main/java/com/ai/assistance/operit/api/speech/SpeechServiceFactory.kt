@@ -4,7 +4,6 @@ import android.content.Context
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.data.preferences.SpeechServiceProfilesPreferences
 import com.ai.assistance.operit.data.preferences.SpeechServicesPreferences.SttHttpConfig
-import kotlinx.coroutines.runBlocking
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** 语音识别服务工厂类 用于创建和管理不同类型的语音识别服务 */
@@ -25,20 +24,21 @@ object SpeechServiceFactory {
      * @param context 应用上下文
      * @return 对应类型的语音识别服务实例
      */
-    fun createSpeechService(
+    suspend fun createSpeechService(
         context: Context
     ): SpeechService {
         val profiles = SpeechServiceProfilesPreferences(context)
-        val profile = runBlocking { profiles.getCurrentSttProfile() }
+        val profile = profiles.getCurrentSttProfile()
 
         return createSpeechService(context, profile.serviceType, profile.httpConfig)
     }
 
-    fun createWakeSpeechService(
+    // profile 存于 DataStore，读取需挂起；调用方（唤醒监听链路）均在协程内
+    suspend fun createWakeSpeechService(
         context: Context,
     ): SpeechService {
         val profiles = SpeechServiceProfilesPreferences(context)
-        val profile = runBlocking { profiles.getCurrentSttProfile() }
+        val profile = profiles.getCurrentSttProfile()
         val selectedType = profile.serviceType
         val effectiveType = when (selectedType) {
             SpeechServiceType.OPENAI_STT,
@@ -49,14 +49,18 @@ object SpeechServiceFactory {
         return createSpeechService(context, effectiveType, profile.httpConfig)
     }
 
-    fun createSpeechService(
+    suspend fun createSpeechService(
         context: Context,
         type: SpeechServiceType,
     ): SpeechService {
         val profiles = SpeechServiceProfilesPreferences(context)
-        val config = runBlocking { profiles.getCurrentSttProfile().httpConfig }
+        val config = profiles.getCurrentSttProfile().httpConfig
         return createSpeechService(context, type, config)
     }
+
+    // 本地引擎不依赖 profile 配置，无需读 DataStore，可在无协程上下文同步创建
+    fun createLocalSpeechService(context: Context): SpeechService =
+        acquireLocalSpeechService(context, SpeechServiceType.SHERPA_NCNN)
 
     private fun createSpeechService(
         context: Context,
@@ -66,24 +70,20 @@ object SpeechServiceFactory {
         return when (type) {
             SpeechServiceType.SHERPA_NCNN -> acquireLocalSpeechService(context, type)
             SpeechServiceType.OPENAI_STT -> {
-                runBlocking {
-                    OpenAISttProvider(
-                        context = context,
-                        endpointUrl = httpConfig.endpointUrl,
-                        apiKey = httpConfig.apiKey,
-                        model = httpConfig.modelName,
-                    )
-                }
+                OpenAISttProvider(
+                    context = context,
+                    endpointUrl = httpConfig.endpointUrl,
+                    apiKey = httpConfig.apiKey,
+                    model = httpConfig.modelName,
+                )
             }
             SpeechServiceType.DEEPGRAM_STT -> {
-                runBlocking {
-                    DeepgramSttProvider(
-                        context = context,
-                        endpointUrl = httpConfig.endpointUrl,
-                        apiKey = httpConfig.apiKey,
-                        model = httpConfig.modelName,
-                    )
-                }
+                DeepgramSttProvider(
+                    context = context,
+                    endpointUrl = httpConfig.endpointUrl,
+                    apiKey = httpConfig.apiKey,
+                    model = httpConfig.modelName,
+                )
             }
         }
     }
@@ -178,11 +178,12 @@ object SpeechServiceFactory {
      * @param context 应用上下文
      * @return 语音识别服务实例
      */
-    fun getInstance(
+    // profile 读取需挂起（DataStore），调用方必须在协程内调用
+    suspend fun getInstance(
         context: Context,
     ): SpeechService {
         val profiles = SpeechServiceProfilesPreferences(context)
-        val profile = runBlocking { profiles.getCurrentSttProfile() }
+        val profile = profiles.getCurrentSttProfile()
         val selectedProfileId = profile.id
 
         val needNewInstance = instance == null || selectedProfileId != currentProfileId

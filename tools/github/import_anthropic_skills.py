@@ -40,6 +40,10 @@ _ISSUE_CREATE_LOCK = threading.Lock()
 _ISSUE_CREATE_LAST_TS = 0.0
 _ISSUE_CREATE_MIN_INTERVAL_S = 1.6
 
+# tools/github -> tools -> 仓库根；缓存/输出统一落在仓库内 temp 目录，避免机器相关的绝对路径
+REPO_ROOT = Path(__file__).resolve().parents[2]
+TEMP_DIR = REPO_ROOT / "temp"
+
 
 def _load_env(env_path: Path) -> None:
     if not env_path.exists():
@@ -447,7 +451,7 @@ def _download_binary(url: str, out_path: Path, ctx: ssl.SSLContext, timeout_s: i
 
 def _zip_cache_path(owner: str, repo: str, ref: str) -> Path:
     safe = f"{owner}__{repo}__{ref}".replace("/", "_").replace("\\", "_")
-    return Path(r"D:\Code\prog\assistance\temp") / "skill-market-zip-cache" / f"{safe}.zip"
+    return TEMP_DIR / "skill-market-zip-cache" / f"{safe}.zip"
 
 
 def _get_repo_zip_path(owner: str, repo: str, ref: str, ctx: ssl.SSLContext) -> Path:
@@ -1409,7 +1413,7 @@ def main() -> int:
 
     if args.validate_sources:
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_dir = Path(r"D:\Code\prog\assistance\temp") / "skill-market-validate" / run_id
+        report_dir = TEMP_DIR / "skill-market-validate" / run_id
         report_dir.mkdir(parents=True, exist_ok=True)
         report_path = report_dir / "report.json"
         progress_path = report_dir / "progress.json"
@@ -1506,7 +1510,7 @@ def main() -> int:
     dry_run_run_dir: Optional[Path] = None
     if args.dry_run:
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        dry_run_run_dir = Path(r"D:\Code\prog\assistance\temp") / "skill-market-dry-run" / run_id
+        dry_run_run_dir = TEMP_DIR / "skill-market-dry-run" / run_id
         dry_run_run_dir.mkdir(parents=True, exist_ok=True)
         print(f"[dry-run] output dir: {dry_run_run_dir}")
         print(f"[dry-run] jobs: {jobs}")
@@ -1560,7 +1564,7 @@ def main() -> int:
                         print(f"[skip] {res.get('skill_name')} already exists: {res.get('repo_url')}")
                     else:
                         out_path = _write_dry_run_issue_file(
-                            run_dir=dry_run_run_dir or Path(r"D:\Code\prog\assistance\temp"),
+                            run_dir=dry_run_run_dir or TEMP_DIR,
                             index=int(res.get("index") or idx),
                             title=str(res.get("title") or skill.name),
                             repository_url=str(res.get("repo_url") or ""),

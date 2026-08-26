@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 class FloatingChatService : Service(), FloatingWindowCallback {
     private val TAG = "FloatingChatService"
@@ -67,6 +68,8 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     private val PREF_KEY_STATUS_INDICATOR_STYLE = "status_indicator_style"
     private val PREF_KEY_COLOR_SCHEME = "floating_color_scheme_json"
     private val PREF_KEY_TYPOGRAPHY = "floating_typography_json"
+    private val PREF_KEY_LAST_CRASH_TIME = "last_crash_time"
+    private val PREF_KEY_CRASH_COUNT = "crash_count"
 
     lateinit var windowState: FloatingWindowState
     private lateinit var windowManager: FloatingWindowManager
@@ -81,12 +84,18 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     // 聊天服务核心 - 整合所有业务逻辑
     private lateinit var chatCore: ChatServiceCore
 
-    private var lastCrashTime = 0L
-    private var crashCount = 0
+    // 服务不创建任何自有线程（协程均在主线程与共享调度池上运行），ownedThreads 是服务
+    // 自有线程的登记点：崩溃线程命中才记为服务崩溃并自重启，其余线程一律委托原默认
+    // handler，避免本服务拦截进程内无关线程的崩溃（handleServiceCrash 的 finally 亦会委托）
+    private val ownedThreads: MutableSet<Thread> = ConcurrentHashMap.newKeySet()
     private val defaultExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
     private val customExceptionHandler =
             Thread.UncaughtExceptionHandler { thread, throwable ->
-                handleServiceCrash(thread, throwable)
+                if (thread in ownedThreads) {
+                    handleServiceCrash(thread, throwable)
+                } else {
+                    defaultExceptionHandler?.uncaughtException(thread, throwable)
+                }
             }
 
     private val colorScheme = mutableStateOf<ColorScheme?>(null)
@@ -172,11 +181,18 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     private fun handleServiceCrash(thread: Thread, throwable: Throwable) {
         try {
             AppLogger.e(TAG, "Service crashed: ${throwable.message}", throwable)
+            // 计数持久化到 SharedPreferences：崩溃会终止进程，实例字段归零会使
+            // "1 分钟内 4 次永久禁用"的分支在新进程中永远无法触达
             val currentTime = System.currentTimeMillis()
+            val lastCrashTime = prefs.getLong(PREF_KEY_LAST_CRASH_TIME, 0L)
+            var crashCount = prefs.getInt(PREF_KEY_CRASH_COUNT, 0)
             if (currentTime - lastCrashTime > 60000) {
                 crashCount = 0
             }
-            lastCrashTime = currentTime
+            prefs.edit()
+                .putLong(PREF_KEY_LAST_CRASH_TIME, currentTime)
+                .putInt(PREF_KEY_CRASH_COUNT, crashCount + 1)
+                .apply()
             crashCount++
 
             if (crashCount > 3) {
@@ -212,9 +228,10 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         } catch (_: Exception) {
         }
 
-        Thread.setDefaultUncaughtExceptionHandler(customExceptionHandler)
-
+        // prefs 须先于崩溃 handler 就绪：handleServiceCrash 内要读写崩溃计数
         prefs = getSharedPreferences("floating_chat_prefs", Context.MODE_PRIVATE)
+
+        Thread.setDefaultUncaughtExceptionHandler(customExceptionHandler)
         if (prefs.getBoolean("service_disabled_due_to_crashes", false)) {
             AppLogger.w(TAG, "Service was disabled due to frequent crashes")
             stopSelf()

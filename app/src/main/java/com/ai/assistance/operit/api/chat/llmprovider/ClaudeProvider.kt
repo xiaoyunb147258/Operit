@@ -1405,6 +1405,11 @@ open class ClaudeProvider(
         if (exception is UserCancellationException || exception is CancellationException) {
             throw exception
         }
+        // 401/400/404 等客户端错误重试不可能成功，立即上抛终止重试循环；
+        // 429 限流除外，仍走下方重试路径以轮询下一个密钥
+        if (exception is NonRetriableException && exception.statusCode != 429) {
+            throw exception
+        }
         if (isManuallyCancelled) {
             AppLogger.d("AIService", "【Claude】请求被用户取消，停止重试。")
             throw UserCancellationException(context.getString(R.string.openai_error_request_cancelled), exception)

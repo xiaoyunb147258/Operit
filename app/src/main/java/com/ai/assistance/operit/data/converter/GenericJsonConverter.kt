@@ -49,12 +49,8 @@ class GenericJsonConverter : ChatFormatConverter {
         
         return if (firstElement is JsonObject) {
             // 判断是对话数组还是消息数组
-            if (isConversationObject(firstElement)) {
-                // 对话数组
-                array.mapNotNull { 
-                    if (it is JsonObject) parseConversationObject(it) else null 
-                }
-            } else if (isMessageObject(firstElement)) {
+            // 必须先测消息对象：若对话判定在前，消息数组会被逐个拆成单消息会话
+            if (isMessageObject(firstElement)) {
                 // 消息数组 - 创建单个对话
                 val baseTimestamp = System.currentTimeMillis()
                 val messages = array.mapIndexedNotNull { index, element ->
@@ -71,6 +67,11 @@ class GenericJsonConverter : ChatFormatConverter {
                     ))
                 } else {
                     emptyList()
+                }
+            } else if (isConversationObject(firstElement)) {
+                // 对话数组
+                array.mapNotNull {
+                    if (it is JsonObject) parseConversationObject(it) else null
                 }
             } else {
                 emptyList()
@@ -101,9 +102,8 @@ class GenericJsonConverter : ChatFormatConverter {
      * 判断是否为对话对象
      */
     private fun isConversationObject(obj: JsonObject): Boolean {
-        return obj.containsKey("messages") || 
-               obj.containsKey("title") ||
-               (obj.containsKey("role") && obj.containsKey("content"))
+        return obj.containsKey("messages") ||
+               obj.containsKey("title")
     }
     
     /**

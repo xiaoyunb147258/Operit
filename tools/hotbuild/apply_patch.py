@@ -21,6 +21,10 @@ OP_END = 0
 OP_COPY = 1
 OP_ADD = 2
 
+# 本次运行实际下载的 patch/meta 临时文件，--keep 未指定时结尾统一删除，
+# 只登记下载产物以保证删除范围不波及运行前已存在的文件
+downloaded_files: list[Path] = []
+
 
 def sha256_file(path: Path) -> bytes:
     h = hashlib.sha256()
@@ -38,7 +42,7 @@ def sha256_hex(path: Path) -> str:
 
 
 def run(args: list[str]) -> tuple[int, str, str]:
-    p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     return p.returncode, p.stdout, p.stderr
 
 
@@ -78,6 +82,7 @@ def download_file(url: str, out_path: Path, token: Optional[str]) -> None:
             if not chunk:
                 break
             f.write(chunk)
+    downloaded_files.append(out_path)
 
 
 def try_download_with_gh(repo: str, tag: str, asset: str, out_dir: Path) -> bool:
@@ -87,6 +92,8 @@ def try_download_with_gh(repo: str, tag: str, asset: str, out_dir: Path) -> bool
     code, out, err = run(cmd)
     sys.stdout.write(out)
     sys.stderr.write(err)
+    if code == 0:
+        downloaded_files.append(out_dir / asset)
     return code == 0
 
 
@@ -668,11 +675,10 @@ def main() -> int:
     sys.stdout.write(f"ok -> {to_apk}\n")
 
     if not args.keep:
-        if args.tag and meta_path is None:
-            for p in wd.glob("patch_*.json"):
-                if p.is_file():
-                    pass
-        return 0
+        # 未指定 --keep 时删除本次下载的 patch/meta 临时文件，本次未下载的旧文件不动
+        for p in downloaded_files:
+            if p.is_file():
+                p.unlink()
 
     return 0
 

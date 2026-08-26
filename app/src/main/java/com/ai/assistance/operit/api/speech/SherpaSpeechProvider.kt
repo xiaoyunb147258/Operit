@@ -5,6 +5,8 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Handler
+import android.os.Looper
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.OperitPaths
 import com.k2fsa.sherpa.ncnn.*
@@ -12,15 +14,16 @@ import com.ai.assistance.operit.api.speech.SpeechPrerollStore
 import java.io.File
 import com.ai.assistance.operit.util.AssetCopyUtils
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -43,6 +46,10 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
     private var audioRecord: AudioRecord? = null
     private var recordingJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Default)
+    // shutdown 幂等标记：调用方（工厂重建、界面销毁）可能对同一实例重复触发
+    private val shutdownStarted = AtomicBoolean(false)
+    // 录音循环退出时复位状态用：不能走协程 Main dispatcher，主线程被阻塞时录音协程会卡死在退出路径上
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private fun clearAndReleaseAudioRecord() {
         val record = audioRecord
@@ -432,9 +439,16 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                     } catch (e: Exception) {
                         AppLogger.e(TAG, "Recording loop failed", e)
                     } finally {
-                        withContext(Dispatchers.Main) {
-                            _recognitionState.value = SpeechService.RecognitionState.IDLE
-                            _volumeLevelFlow.value = 0f
+                        // 不能用 withContext(Dispatchers.Main)：主线程被阻塞时 Main dispatcher
+                        // 无法调度，录音协程会永远退不出去（旧 shutdown 死锁的一环）。
+                        // Handler.post 立即返回，退出路径不再依赖 Main dispatcher 的调度。
+                        mainHandler.post {
+                            // shutdown 已启动时状态由 shutdown 协程统一复位，
+                            // 迟到的复位不得把 UNINITIALIZED 终态覆盖回 IDLE
+                            if (!shutdownStarted.get()) {
+                                _recognitionState.value = SpeechService.RecognitionState.IDLE
+                                _volumeLevelFlow.value = 0f
+                            }
                         }
                         AppLogger.d(TAG, "Stopped recording.")
                     }
@@ -505,20 +519,28 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
     }
 
     override fun shutdown() {
-        runBlocking {
+        // 幂等：调用方可能对同一实例重复触发 shutdown
+        if (!shutdownStarted.compareAndSet(false, true)) return
+        // 不再 runBlocking 阻塞调用线程：曾经 cancelRecognition 的 join 要等录音循环退出，
+        // 而录音循环退出又依赖 Main dispatcher 调度，从主线程调用时构成永久死锁。
+        // 清理工作投递到自身作用域异步执行，join 在无人阻塞调用线程的前提下可正常等待。
+        scope.launch {
             try {
                 cancelRecognition()
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "cancelRecognition during shutdown failed", e)
             }
             withContext(Dispatchers.IO) {
                 try {
                     recognizer?.release()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "release recognizer failed", e)
                 }
                 recognizer = null
                 try {
                     vad?.close()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "close vad failed", e)
                 }
                 vad = null
             }
@@ -526,6 +548,8 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
             _recognitionState.value = SpeechService.RecognitionState.UNINITIALIZED
             _volumeLevelFlow.value = 0f // 重置音量
             _recognitionResult.value = SpeechService.RecognitionResult(text = "", isFinal = false, confidence = 0f)
+            // shutdown 是终态（各调用点之后都会新建实例），取消作用域防止再投递录音任务
+            scope.cancel()
         }
     }
 

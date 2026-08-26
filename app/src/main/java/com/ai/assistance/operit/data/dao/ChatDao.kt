@@ -21,6 +21,10 @@ interface ChatDao {
     @Query("SELECT COUNT(*) FROM chats")
     suspend fun getTotalChatCount(): Int
 
+    /** 获取所有聊天ID（仅投影 id 列，避免为取 id 加载全部实体） */
+    @Query("SELECT id FROM chats")
+    suspend fun getAllChatIds(): List<String>
+
     /** 获取所有聊天（挂起函数版本） */
     @Query("SELECT * FROM chats ORDER BY pinned DESC, displayOrder ASC")
     suspend fun getAllChatsDirectly(): List<ChatEntity>

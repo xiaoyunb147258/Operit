@@ -265,6 +265,14 @@ class OpenAIResponsesProvider(
 
 object OpenAIResponsesPayloadAdapter {
 
+    /**
+     * JSON 边界判空：org.json 的 optString 对 JSON null 返回字面 "null"，
+     * chunks 最终流入 OpenAIProvider 的 emitContent/emitThinkContent（谓词只判空串），
+     * 不在取值处挡住会把字面 "null" 当真实输出发出
+     */
+    private fun JSONObject.contentOrEmpty(name: String): String =
+        if (this.has(name) && !this.isNull(name)) this.optString(name) else ""
+
     data class UsageCounts(
         val totalInputTokens: Int,
         val actualInputTokens: Int,
@@ -392,14 +400,14 @@ object OpenAIResponsesPayloadAdapter {
                                 val part = contentArray.optJSONObject(j) ?: continue
                                 when (part.optString("type", "")) {
                                     "output_text", "text" -> {
-                                        val text = part.optString("text", "")
+                                        val text = part.contentOrEmpty("text")
                                         if (text.isNotEmpty()) {
                                             textChunks.add(text)
                                         }
                                     }
 
                                     "reasoning_text" -> {
-                                        val text = part.optString("text", "")
+                                        val text = part.contentOrEmpty("text")
                                         if (text.isNotEmpty()) {
                                             reasoningChunks.add(text)
                                         }
@@ -416,7 +424,7 @@ object OpenAIResponsesPayloadAdapter {
                         if (summaryArray != null) {
                             for (j in 0 until summaryArray.length()) {
                                 val summaryPart = summaryArray.optJSONObject(j) ?: continue
-                                val text = summaryPart.optString("text", "")
+                                val text = summaryPart.contentOrEmpty("text")
                                 if (text.isNotEmpty()) {
                                     reasoningChunks.add(text)
                                 }

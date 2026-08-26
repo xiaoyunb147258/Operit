@@ -51,6 +51,7 @@ class MarkdownConverter(private val context: Context) : ChatFormatConverter {
         val messages = mutableListOf<ChatMessage>()
         
         var title = "Imported from Markdown"
+        var hasFrontMatterTitle = false
         var createdAt = LocalDateTime.now()
         var currentRole: String? = null
         var currentContent = StringBuilder()
@@ -81,7 +82,10 @@ class MarkdownConverter(private val context: Context) : ChatFormatConverter {
                 i++
             }
             i++ // 跳过结束的 ---
-            metadata["title"]?.let { title = it }
+            metadata["title"]?.let {
+                title = it
+                hasFrontMatterTitle = true
+            }
             metadata["created"]?.let { createdAt = parseDate(it) ?: createdAt }
         }
         
@@ -96,7 +100,10 @@ class MarkdownConverter(private val context: Context) : ChatFormatConverter {
             // 检查 chat-info
             if (trimmed.startsWith("<!-- chat-info:")) {
                 val props = parseSimpleProperties(trimmed, "chat-info")
-                props["title"]?.let { title = it }
+                // front matter 的 title 按整行解析、不经分隔符切分，值完整，故优先于 chat-info
+                if (!hasFrontMatterTitle) {
+                    props["title"]?.let { title = it }
+                }
                 props["created"]?.let { createdAt = parseDate(it) ?: createdAt }
                 i++
                 continue
@@ -226,7 +233,7 @@ class MarkdownConverter(private val context: Context) : ChatFormatConverter {
             
             if (trimmed.contains("=")) {
                 val (key, value) = trimmed.split("=", limit = 2)
-                result[key.trim()] = value.trim()
+                result[key.trim()] = unescapeMetaValue(value.trim())
             } else {
                 // 没有等号，作为 key 存在，value 为空，或者作为特定标记
                 // 为了支持 "user" 这种简写，我们将整个字符串作为 key
@@ -235,7 +242,15 @@ class MarkdownConverter(private val context: Context) : ChatFormatConverter {
         }
         return result
     }
-    
+
+    /**
+     * 还原导出侧 escapeMetaValue 的转义，实体不带分号
+     * 解码顺序与编码相反，&amp 必须最后还原：提前还原的 & 会与后续字符拼出伪实体
+     */
+    private fun unescapeMetaValue(value: String) =
+        value.replace("&#61", "=").replace("&#59", ";")
+            .replace("&#44", ",").replace("&amp", "&")
+
     /**
      * 解析角色标记
      * 只支持明确的角色名称，避免误判

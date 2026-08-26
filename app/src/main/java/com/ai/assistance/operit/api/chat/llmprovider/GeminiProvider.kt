@@ -1067,6 +1067,11 @@ open class GeminiProvider(
         if (exception is PromptBlockedException) {
             throw exception
         }
+        // 401/400/404 等客户端错误重试不可能成功，立即上抛终止重试循环；
+        // 429 限流除外，仍走下方重试路径以轮询下一个密钥
+        if (exception is NonRetriableException && exception.statusCode != 429) {
+            throw exception
+        }
         if (isManuallyCancelled) {
             logError("请求被用户取消，停止重试。", exception)
             throw UserCancellationException(context.getString(R.string.gemini_error_request_cancelled), exception)
@@ -1478,6 +1483,9 @@ open class GeminiProvider(
         var isCollectingJson = false
         var jsonDepth = 0
         var jsonStartSymbol = ' ' // 记录JSON是以 { 还是 [ 开始的
+        // 分段JSON的字符串字面量可能被行边界切开，扫描状态必须与jsonDepth同级跨行保持
+        var inString = false
+        var escaped = false
 
         try {
             reader.useLines { lines ->
@@ -1536,6 +1544,8 @@ open class GeminiProvider(
                         ) {
                             isCollectingJson = true
                             jsonDepth = 0
+                            inString = false
+                            escaped = false
                             completeJsonBuilder.clear()
                             jsonStartSymbol = trimmedLine[0]
                             logDebug("开始收集JSON，起始符号: $jsonStartSymbol")
@@ -1544,10 +1554,16 @@ open class GeminiProvider(
                         if (isCollectingJson) {
                             completeJsonBuilder.append(trimmedLine)
 
-                            // 更新JSON深度
+                            // 更新JSON深度：字符串字面量内的括号不计深度，
+                            // 否则模型输出含 [笑]、代码、JSON 文本时会提前归零导致 chunk 被丢弃
                             for (char in trimmedLine) {
-                                if (char == '{' || char == '[') jsonDepth++
-                                if (char == '}' || char == ']') jsonDepth--
+                                when {
+                                    escaped -> escaped = false
+                                    inString && char == '\\' -> escaped = true
+                                    char == '"' -> inString = !inString
+                                    !inString && (char == '{' || char == '[') -> jsonDepth++
+                                    !inString && (char == '}' || char == ']') -> jsonDepth--
+                                }
                             }
 
                             // 尝试作为完整JSON解析
@@ -1619,8 +1635,10 @@ open class GeminiProvider(
                                         }
                                     }
 
-                                    // 解析成功后重置收集器
+                                    // 解析成功后重置收集器，扫描状态一并归零
                                     isCollectingJson = false
+                                    inString = false
+                                    escaped = false
                                     completeJsonBuilder.clear()
                                 }
                             } catch (e: CancellationException) {
@@ -1636,6 +1654,8 @@ open class GeminiProvider(
                                     // 深度为0但解析失败，可能是无效JSON
                                     logError("JSON解析失败: ${e.message}", e)
                                     isCollectingJson = false
+                                    inString = false
+                                    escaped = false
                                     completeJsonBuilder.clear()
                                 }
                             }

@@ -25,6 +25,8 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.ai.assistance.operit.data.db.ObjectBoxManager
+import com.ai.assistance.operit.core.tools.defaultTool.standard.MemoryQueryToolExecutor
+import com.ai.assistance.operit.provider.MemoryDocumentsProvider
 import com.ai.assistance.operit.util.LocaleUtils.LanguageCodes
 
 private val Context.userPreferencesDataStore: DataStore<Preferences> by
@@ -491,6 +493,10 @@ class UserPreferencesManager private constructor(private val context: Context) {
         }
         MemorySpaceProfileDocumentRepository.getInstance(context).delete(memorySpaceId)
         ObjectBoxManager.delete(context, memorySpaceId)
+        // Store 已随删除关闭，必须同步丢弃各处按 profileId 缓存的 MemoryRepository，
+        // 否则后续访问会命中已关闭的 Store
+        MemoryQueryToolExecutor.invalidateProfileCache(memorySpaceId)
+        MemoryDocumentsProvider.invalidateRepositoryCache(memorySpaceId)
     }
 
     suspend fun readLegacyUserProfiles(): LegacyUserProfileSnapshot {

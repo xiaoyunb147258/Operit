@@ -12,14 +12,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.ai.assistance.operit.api.chat.AIForegroundService
 import com.ai.assistance.operit.api.speech.SpeechPrerollStore
+import com.ai.assistance.operit.api.speech.SpeechService
 import com.ai.assistance.operit.api.speech.WakePhraseSnapshot
 import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.util.TtsCleaner
 import com.ai.assistance.operit.util.WaifuMessageProcessor
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 private const val TAG = "SpeechInteractionManager"
@@ -55,20 +64,35 @@ class SpeechInteractionManager(
     private var silenceTimeoutJob: Job? = null
 
     // ===== 服务 =====
-    val speechService = SpeechServiceFactory.getInstance(context)
+    // STT profile 存于 DataStore，而本类经 Compose remember/ViewModel 属性在主线程构造，
+    // 不能同步读取：实例推迟到 initialize() 的协程中获取，flow 经 serviceState 桥接暴露
+    private val serviceState = MutableStateFlow<SpeechService?>(null)
+    val speechService: SpeechService? get() = serviceState.value
     val voiceService
         get() = VoiceServiceFactory.getInstance(context)
     private val inputMethodManager = context.getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
 
-    // 暴露 Flow 给外部使用
-    val volumeLevelFlow get() = speechService.volumeLevelFlow
-    val recognitionResultFlow get() = speechService.recognitionResultFlow
+    // 暴露 Flow 给外部使用；服务就绪前的音量为 0（尚未开始识别）
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val volumeLevelFlow: StateFlow<Float> =
+        serviceState
+            .filterNotNull()
+            .flatMapLatest { it.volumeLevelFlow }
+            .stateIn(coroutineScope, SharingStarted.Eagerly, 0f)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val recognitionResultFlow: Flow<SpeechService.RecognitionResult> =
+        serviceState
+            .filterNotNull()
+            .flatMapLatest { it.recognitionResultFlow }
 
     // ===== 初始化与清理 =====
     suspend fun initialize() {
         resetState()
         try {
-            speechService.initialize()
+            val service = SpeechServiceFactory.getInstance(context)
+            serviceState.value = service
+            service.initialize()
             voiceService.initialize()
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to initialize speech services", e)
@@ -78,7 +102,8 @@ class SpeechInteractionManager(
     fun cleanup() {
         stopListening(isCancel = true)
         coroutineScope.launch {
-            speechService.cancelRecognition()
+            // 服务经 initialize() 异步就绪，此时尚未就绪则无可取消的识别
+            speechService?.cancelRecognition()
             voiceService.stop()
         }
         timeoutJob?.cancel()
@@ -161,11 +186,12 @@ class SpeechInteractionManager(
                     if (attempt > 0) {
                         delay(160)
                     }
-                    ok = speechService.startRecognition(
+                    // 服务尚未就绪视为启动失败，进入重试；就绪后由后续尝试接管
+                    ok = speechService?.startRecognition(
                         languageCode = "zh-CN",
                         continuousMode = true,
                         partialResults = true
-                    )
+                    ) ?: false
                     attempt++
                 }
 
@@ -197,14 +223,14 @@ class SpeechInteractionManager(
 
         coroutineScope.launch {
             if (isCancel) {
-                speechService.cancelRecognition()
+                speechService?.cancelRecognition()
                 isProcessingSpeech = false
                 resetState()
                 onStateChange(context.getString(R.string.floating_hold_microphone))
             } else {
                 isProcessingSpeech = true
                 onStateChange(context.getString(R.string.floating_recognizing))
-                speechService.stopRecognition()
+                speechService?.stopRecognition()
                 startFallbackTimeout()
             }
         }

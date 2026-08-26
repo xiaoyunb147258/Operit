@@ -8,6 +8,14 @@ import androidx.room.Update
 import com.ai.assistance.operit.data.model.ChatMessageLocatorPreview
 import com.ai.assistance.operit.data.model.MessageEntity
 
+/** selectedVariantIndex 越界的消息投影，variantCount 含 base 消息本身 */
+data class OrphanedVariantSelection(
+    val chatId: String,
+    val timestamp: Long,
+    val selectedVariantIndex: Int,
+    val variantCount: Int,
+)
+
 /** 消息DAO接口，定义对消息表的数据访问方法 */
 @Dao
 interface MessageDao {
@@ -225,6 +233,26 @@ interface MessageDao {
         timestamp: Long,
         selectedVariantIndex: Int,
     )
+
+    /** 查询 selectedVariantIndex 指向不存在 variant 的消息（variantCount 含 base 消息） */
+    @Query(
+        """
+        SELECT
+            messages.chatId AS chatId,
+            messages.timestamp AS timestamp,
+            messages.selectedVariantIndex AS selectedVariantIndex,
+            (SELECT COUNT(*) FROM message_variants
+                WHERE message_variants.chatId = messages.chatId
+                    AND message_variants.messageTimestamp = messages.timestamp) + 1 AS variantCount
+        FROM messages
+        WHERE messages.selectedVariantIndex > (
+            SELECT COUNT(*) FROM message_variants
+            WHERE message_variants.chatId = messages.chatId
+                AND message_variants.messageTimestamp = messages.timestamp
+        )
+        """
+    )
+    suspend fun getOrphanedVariantSelections(): List<OrphanedVariantSelection>
 
     @Query(
         "UPDATE messages SET isFavorite = :isFavorite WHERE chatId = :chatId AND timestamp = :timestamp"

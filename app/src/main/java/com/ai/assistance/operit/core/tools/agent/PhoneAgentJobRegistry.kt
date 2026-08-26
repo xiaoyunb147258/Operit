@@ -33,7 +33,8 @@ object PhoneAgentJobRegistry {
         val set = jobsByAgentId[agentId] ?: return
         set.remove(job)
         if (set.isEmpty()) {
-            jobsByAgentId.remove(agentId)
+            // 两参 remove 仅当映射仍指向同一 set 才移除：单参形式会误删并发 register 刚建立的新 set，使任务脱离取消控制
+            jobsByAgentId.remove(agentId, set)
         }
     }
 

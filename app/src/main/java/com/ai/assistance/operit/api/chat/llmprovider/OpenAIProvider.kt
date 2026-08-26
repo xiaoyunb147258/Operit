@@ -503,7 +503,7 @@ open class OpenAIProvider(
                     val part = contentArr.optJSONObject(j) ?: continue
                     val partType = part.optString("type", "")
                     if (partType == "output_text" || partType == "text") {
-                        val text = part.optString("text", "")
+                        val text = part.contentOrEmpty("text")
                         if (text.isNotEmpty()) {
                             emitter.emitContent(text)
                             handledAny = true
@@ -1378,9 +1378,17 @@ open class OpenAIProvider(
     private fun escapeXml(text: String) = XmlEscaper.escape(text)
 
     /**
-     * 字符串非空且非"null"检查
+     * JSON 边界判空：org.json 的 optString 对 JSON null 返回字面 "null"，
+     * 必须用 has+isNull 在取值处挡住，否则字面量会混入真实输出
      */
-    private fun String.isNotNullOrEmpty() = this.isNotEmpty() && this != "null"
+    private fun JSONObject.contentOrEmpty(name: String): String =
+        if (this.has(name) && !this.isNull(name)) this.optString(name) else ""
+
+    /**
+     * 字符串非空检查（JSON null 已在 contentOrEmpty 边界处理，这里只判空串，
+     * 否则会误杀模型真实输出的 "null" 文本分块）
+     */
+    private fun String.isNotNullOrEmpty() = this.isNotEmpty()
 
     /**
      * Tool Call流式输出状态管理
@@ -1528,6 +1536,11 @@ open class OpenAIProvider(
         buildRetryMessage: (String, Int) -> String
     ): Int {
         if (exception is UserCancellationException || exception is CancellationException) {
+            throw exception
+        }
+        // 401/400/404 等客户端错误重试不可能成功，立即上抛终止重试循环；
+        // 429 限流除外，仍走下方重试路径以轮询下一个密钥
+        if (exception is NonRetriableException && exception.statusCode != 429) {
             throw exception
         }
         checkCancellation(context, exception)
@@ -2004,7 +2017,7 @@ open class OpenAIProvider(
         if (summaryArray != null) {
             for (i in 0 until summaryArray.length()) {
                 val summaryPart = summaryArray.optJSONObject(i) ?: continue
-                val text = summaryPart.optString("text", "").trim()
+                val text = summaryPart.contentOrEmpty("text").trim()
                 if (text.isNotEmpty()) {
                     chunks.add(text)
                 }
@@ -2015,7 +2028,7 @@ open class OpenAIProvider(
         if (contentArray != null) {
             for (i in 0 until contentArray.length()) {
                 val contentPart = contentArray.optJSONObject(i) ?: continue
-                val text = contentPart.optString("text", "").trim()
+                val text = contentPart.contentOrEmpty("text").trim()
                 if (text.isNotEmpty()) {
                     chunks.add(text)
                 }
@@ -2049,7 +2062,7 @@ open class OpenAIProvider(
 
         when (eventType) {
             "response.output_text.delta" -> {
-                val delta = jsonResponse.optString("delta", "")
+                val delta = jsonResponse.contentOrEmpty("delta")
                 if (delta.isNotEmpty()) {
                     processContentDelta("", delta, state, emitter)
                 }
@@ -2057,7 +2070,7 @@ open class OpenAIProvider(
 
             "response.reasoning_text.delta", "response.reasoning_summary_text.delta" -> {
                 state.reasoningObserved = true
-                val delta = jsonResponse.optString("delta", "")
+                val delta = jsonResponse.contentOrEmpty("delta")
                 if (delta.isNotEmpty()) {
                     processContentDelta(delta, "", state, emitter)
                 }
@@ -2065,7 +2078,7 @@ open class OpenAIProvider(
 
             "response.reasoning_text.done", "response.reasoning_summary_text.done" -> {
                 state.reasoningObserved = true
-                val text = jsonResponse.optString("text", "")
+                val text = jsonResponse.contentOrEmpty("text")
                 if (text.isNotEmpty() && state.streamedReasoningContentLength == 0) {
                     emitCompletedResponsesReasoningText(text, state, emitter)
                 }
@@ -2074,7 +2087,7 @@ open class OpenAIProvider(
             "response.reasoning_summary_part.done" -> {
                 state.reasoningObserved = true
                 val part = jsonResponse.optJSONObject("part")
-                val text = part?.optString("text", "") ?: ""
+                val text = part?.contentOrEmpty("text") ?: ""
                 if (text.isNotEmpty() && state.streamedReasoningContentLength == 0) {
                     emitCompletedResponsesReasoningText(text, state, emitter)
                 }
@@ -2360,20 +2373,20 @@ open class OpenAIProvider(
             }
 
             // 处理内容
-            val reasoningContent = delta.optString("reasoning_content", "").ifBlank {
-                delta.optString("reasoning", "")
+            val reasoningContent = delta.contentOrEmpty("reasoning_content").ifBlank {
+                delta.contentOrEmpty("reasoning")
             }
-            val regularContent = delta.optString("content", "")
+            val regularContent = delta.contentOrEmpty("content")
             processContentDelta(reasoningContent, regularContent, state, emitter)
         }
         // 处理message格式（非流式响应）
         else {
             val message = choice.optJSONObject("message")
             if (message != null) {
-                val reasoningContent = message.optString("reasoning_content", "").ifBlank {
-                    message.optString("reasoning", "")
+                val reasoningContent = message.contentOrEmpty("reasoning_content").ifBlank {
+                    message.contentOrEmpty("reasoning")
                 }
-                val regularContent = message.optString("content", "")
+                val regularContent = message.contentOrEmpty("content")
 
                 // 先处理思考内容（如果有）
                 if (reasoningContent.isNotNullOrEmpty() && !state.hasEmittedRegularContent) {
@@ -2698,8 +2711,8 @@ open class OpenAIProvider(
                                             }
 
                                             val reasoningContent =
-                                                messageObj.optString("reasoning_content", "")
-                                            val regularContent = messageObj.optString("content", "")
+                                                messageObj.contentOrEmpty("reasoning_content")
+                                            val regularContent = messageObj.contentOrEmpty("content")
 
                                             // 处理思考内容（如果有）
                                             if (reasoningContent.isNotNullOrEmpty() && !hasEmittedRegularContent) {

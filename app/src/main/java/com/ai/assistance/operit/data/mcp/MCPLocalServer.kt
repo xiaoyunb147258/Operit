@@ -471,25 +471,28 @@ class MCPLocalServer private constructor(private val context: Context) {
      * 为新配置的服务器初始化状态
      */
     private fun initializeMissingServerStatus() {
-        val currentStatus = _serverStatus.value.toMutableMap()
         var hasNewStatus = false
-        
+
         val configuredServerIds = _mcpConfig.value.mcpServers.keys + _mcpConfig.value.pluginMetadata.keys
-        configuredServerIds.forEach { serverId ->
-            if (!currentStatus.containsKey(serverId)) {
-                currentStatus[serverId] = ServerStatus(
-                    serverId = serverId,
-                    lastStartTime = 0L,
-                    lastStopTime = 0L,
-                    errorMessage = null
-                )
-                hasNewStatus = true
-                AppLogger.d(TAG, "初始化服务器状态: $serverId")
+        // update 原子补齐：避免读快照与写回之间并发更新被整体覆盖回来
+        _serverStatus.update { current ->
+            val currentStatus = current.toMutableMap()
+            configuredServerIds.forEach { serverId ->
+                if (!currentStatus.containsKey(serverId)) {
+                    currentStatus[serverId] = ServerStatus(
+                        serverId = serverId,
+                        lastStartTime = 0L,
+                        lastStopTime = 0L,
+                        errorMessage = null
+                    )
+                    hasNewStatus = true
+                    AppLogger.d(TAG, "初始化服务器状态: $serverId")
+                }
             }
+            currentStatus
         }
-        
+
         if (hasNewStatus) {
-            _serverStatus.value = currentStatus
             coroutineScope.launch {
                 saveServerStatus()
             }
@@ -774,19 +777,20 @@ class MCPLocalServer private constructor(private val context: Context) {
         lastStartTime: Long? = null,
         lastStopTime: Long? = null
     ) {
-        val currentStatus = _serverStatus.value.toMutableMap()
-        val existingStatus = currentStatus[serverId] ?: ServerStatus(serverId)
-        
-        val updatedStatus = existingStatus.copy(
-            errorMessage = errorMessage ?: existingStatus.errorMessage,
-            cachedTools = cachedTools ?: existingStatus.cachedTools,
-            toolsCachedTime = if (cachedTools != null) System.currentTimeMillis() else existingStatus.toolsCachedTime,
-            lastStartTime = lastStartTime ?: existingStatus.lastStartTime,
-            lastStopTime = lastStopTime ?: existingStatus.lastStopTime
-        )
-        
-        currentStatus[serverId] = updatedStatus
-        _serverStatus.value = currentStatus
+        // update 原子替换整个 map：读快照改写回三步分离时，并发更新会互相覆盖导致状态丢失
+        _serverStatus.update { current ->
+            val existingStatus = current[serverId] ?: ServerStatus(serverId)
+
+            val updatedStatus = existingStatus.copy(
+                errorMessage = errorMessage ?: existingStatus.errorMessage,
+                cachedTools = cachedTools ?: existingStatus.cachedTools,
+                toolsCachedTime = if (cachedTools != null) System.currentTimeMillis() else existingStatus.toolsCachedTime,
+                lastStartTime = lastStartTime ?: existingStatus.lastStartTime,
+                lastStopTime = lastStopTime ?: existingStatus.lastStopTime
+            )
+
+            current.toMutableMap().apply { this[serverId] = updatedStatus }
+        }
         saveServerStatus()
         AppLogger.d(TAG, "服务器状态已更新: $serverId")
     }
@@ -828,9 +832,10 @@ class MCPLocalServer private constructor(private val context: Context) {
      * 删除服务器状态
      */
     suspend fun removeServerStatus(serverId: String) {
-        val currentStatus = _serverStatus.value.toMutableMap()
-        currentStatus.remove(serverId)
-        _serverStatus.value = currentStatus
+        // update 原子移除：避免读快照与写回之间并发注册的状态被整体覆盖回来
+        _serverStatus.update { current ->
+            current.toMutableMap().apply { remove(serverId) }
+        }
         saveServerStatus()
         AppLogger.d(TAG, "服务器状态已删除: $serverId")
     }
