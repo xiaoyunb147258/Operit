@@ -20,13 +20,6 @@ LOCALIZATION_PATTERNS = (
 )
 TRANSLATED_STRINGS_PATTERN = "app/src/main/res/values-*/strings.xml"
 LOCALE_CONFIG_PATH = "app/src/main/res/xml/locales_config.xml"
-WEB_PATTERNS = (
-    ".npmrc",
-    "npm-shrinkwrap.json",
-    "package-lock.json",
-    "package.json",
-    "web-chat/**",
-)
 TOOLPKG_PATTERNS = (
     ".npmrc",
     "app/src/main/assets/packages/**",
@@ -82,7 +75,6 @@ class ScopePlan:
     android_jvm: bool
     android_instrumentation: bool
     android_full: bool
-    web: bool
     toolpkg: bool
     docs: bool
     yaml: bool
@@ -96,7 +88,6 @@ class ScopePlan:
             "android_jvm": boolean(self.android_jvm),
             "android_instrumentation": boolean(self.android_instrumentation),
             "android_full": boolean(self.android_full),
-            "web": boolean(self.web),
             "toolpkg": boolean(self.toolpkg),
             "docs": boolean(self.docs),
             "yaml": boolean(self.yaml),
@@ -129,7 +120,6 @@ def path_matches(path: str, patterns: tuple[str, ...]) -> bool:
 def classify_paths(paths: list[str] | tuple[str, ...]) -> ScopePlan:
     normalized_paths = tuple(sorted(set(paths)))
     localization = any(path_matches(path, LOCALIZATION_PATTERNS) for path in normalized_paths)
-    web = any(path_matches(path, WEB_PATTERNS) for path in normalized_paths)
     toolpkg = any(path_matches(path, TOOLPKG_PATTERNS) for path in normalized_paths)
     docs = any(path.endswith((".md", ".mdx")) for path in normalized_paths)
     yaml = any(path.endswith((".yml", ".yaml")) for path in normalized_paths)
@@ -164,7 +154,6 @@ def classify_paths(paths: list[str] | tuple[str, ...]) -> ScopePlan:
         android_jvm=android_jvm,
         android_instrumentation=android_instrumentation,
         android_full=android_full,
-        web=web,
         toolpkg=toolpkg,
         docs=docs,
         yaml=yaml,
@@ -246,7 +235,6 @@ def append_step_summary(path: Path, context: CandidateContext, plan: ScopePlan) 
             "android_jvm",
             "android_instrumentation",
             "android_full",
-            "web",
             "toolpkg",
             "docs",
             "yaml",

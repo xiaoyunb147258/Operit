@@ -32,7 +32,6 @@ on:
       - tools/native_ripgrep/**
       - tools/packages_whitelist.txt
       - tools/example_packages/sync_example_packages.py
-      - web-chat/**
 
 concurrency:
   group: android-tests-${{ github.event_name }}-${{ github.ref }}

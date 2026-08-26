@@ -39,7 +39,6 @@ body:
         - Nightly APK
         - Debug APK
         - Clone APK
-        - Web chat
         - Other / 其他
     validations:
       required: true
@@ -48,11 +47,10 @@ body:
     id: environment
     attributes:
       label: 设备与运行环境 / Environment
-      description: Android 请填写设备型号和 Android 版本；Web chat 请填写操作系统、浏览器及版本。
+      description: 请填写设备型号和 Android 版本。
       placeholder: |
         设备型号：
-        Android / 操作系统版本：
-        浏览器及版本（如适用）：
+        Android 版本：
         其他相关环境：
     validations:
       required: true
@@ -69,7 +67,6 @@ body:
         - UI/UX / 界面交互
         - Local model, audio or voice / 本地模型、音频或语音
         - Permission, system or device / 权限、系统或设备
-        - Web chat / 网页聊天
         - Other / 其他
     validations:
       required: true

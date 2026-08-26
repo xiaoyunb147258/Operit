@@ -83,12 +83,12 @@ class ScopeClassificationTest(unittest.TestCase):
     def test_rename_source_and_destination_cover_both_scopes(self) -> None:
         plan = classify_paths(
             [
-                "web-chat/src/legacy.tsx",
+                "examples/legacy/main.ts",
                 "app/src/main/java/com/example/Current.kt",
             ]
         )
 
-        self.assertTrue(plan.web)
+        self.assertTrue(plan.toolpkg)
         self.assertTrue(plan.android_jvm)
 
     def test_type_change_path_is_classified_normally(self) -> None:
@@ -102,10 +102,9 @@ class ScopeClassificationTest(unittest.TestCase):
         self.assertTrue(plan.yaml)
         self.assertFalse(plan.ci)
 
-    def test_root_npm_configuration_uses_javascript_lanes(self) -> None:
+    def test_root_npm_configuration_uses_toolpkg_lane(self) -> None:
         plan = classify_paths([".npmrc", "npm-shrinkwrap.json"])
 
-        self.assertTrue(plan.web)
         self.assertTrue(plan.toolpkg)
 
     def test_android_test_source_uses_instrumentation_compile(self) -> None:

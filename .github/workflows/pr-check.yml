@@ -36,7 +36,6 @@ jobs:
       android_jvm: ${{ steps.plan.outputs.android_jvm }}
       android_instrumentation: ${{ steps.plan.outputs.android_instrumentation }}
       android_full: ${{ steps.plan.outputs.android_full }}
-      web: ${{ steps.plan.outputs.web }}
       toolpkg: ${{ steps.plan.outputs.toolpkg }}
 
     steps:
@@ -193,39 +192,19 @@ jobs:
           fi
 
       - name: Set up Node.js
-        if: >-
-          steps.plan.outputs.web == 'true' ||
-          steps.plan.outputs.toolpkg == 'true'
+        if: steps.plan.outputs.toolpkg == 'true'
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install JavaScript dependencies
-        if: >-
-          steps.plan.outputs.web == 'true' ||
-          steps.plan.outputs.toolpkg == 'true'
-        env:
-          WEB_REQUIRED: ${{ steps.plan.outputs.web }}
-          TOOLPKG_REQUIRED: ${{ steps.plan.outputs.toolpkg }}
+        if: steps.plan.outputs.toolpkg == 'true'
         shell: bash
         run: |
           set -euo pipefail
           npm install -g pnpm@10.34.5
-          if [[ "$TOOLPKG_REQUIRED" == "true" ]]; then
-            npm ci --no-audit --no-fund
-            npm --prefix examples/toolpkg_wasm_demo ci --no-audit --no-fund
-          fi
-          if [[ "$WEB_REQUIRED" == "true" ]]; then
-            npm --prefix web-chat ci --no-audit --no-fund
-          fi
-
-      - name: Check WebChat
-        if: steps.plan.outputs.web == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm --prefix web-chat run typecheck
-          npm run build:webchat
+          npm ci --no-audit --no-fund
+          npm --prefix examples/toolpkg_wasm_demo ci --no-audit --no-fund
 
       - name: Check bundled ToolPkg packages
         if: steps.plan.outputs.toolpkg == 'true'
@@ -387,10 +366,6 @@ jobs:
           set -euo pipefail
           npm install -g pnpm@10.34.5
           npm ci --no-audit --no-fund
-          npm --prefix web-chat ci --no-audit --no-fund
-
-      - name: Build WebChat assets
-        run: npm run build:webchat
 
       - name: Sync bundled ToolPkg packages
         run: |

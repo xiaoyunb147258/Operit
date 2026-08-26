@@ -43,7 +43,6 @@ on:
       - tools/native_ripgrep/**
       - tools/packages_whitelist.txt
       - tools/example_packages/sync_example_packages.py
-      - web-chat/**
 
 concurrency:
   group: android-build-${{ github.event_name }}-${{ github.ref }}
@@ -181,11 +180,6 @@ jobs:
           set -euo pipefail
           npm install -g pnpm@10.34.5
           npm ci --no-audit --no-fund
-          npm --prefix web-chat ci --no-audit --no-fund
-
-      - name: Build WebChat assets
-        run: |
-          npm run build:webchat
 
       - name: Build bundled ToolPkg packages
         run: |

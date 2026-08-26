@@ -32,11 +32,10 @@ body:
     id: environment
     attributes:
       label: 设备与运行环境 / Environment
-      description: Android 请填写设备型号和系统版本；Web chat 请填写操作系统、浏览器及版本。
+      description: 请填写设备型号和系统版本。
       placeholder: |
         设备型号：
         Android / 操作系统版本：
-        浏览器及版本（如适用）：
     validations:
       required: true
 
