@@ -100,8 +100,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      # setup-android 默认 packages 为 "tools platform-tools"，而 tools 包已从
+      # Google SDK 仓库移除，会以 "Failed to find package 'tools'" 退出 1。
+      # 这里显式只装 platform-tools；其余 SDK/NDK/CMake 由下一步统一安装。
       - name: Set up Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
+        with:
+          packages: platform-tools
 
       - name: Install Android SDK, NDK and CMake
         shell: bash
