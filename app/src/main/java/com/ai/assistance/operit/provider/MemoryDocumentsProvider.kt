@@ -113,27 +113,26 @@ class MemoryDocumentsProvider : DocumentsProvider() {
             "moveDocument source=$sourceDocumentId sourceParent=$sourceParentDocumentId targetParent=$targetParentDocumentId"
         )
 
+        val source = parseDocumentId(sourceDocumentId)
+        val targetParent = parseDocumentId(targetParentDocumentId)
+
+        if (targetParent is DocRef.Root) {
+            throw IllegalArgumentException("Cannot move into root")
+        }
+        if (targetParent is DocRef.Memory) {
+            throw IllegalArgumentException("Target parent is not a directory: $targetParentDocumentId")
+        }
+
+        try {
+            when (parseDocumentId(sourceParentDocumentId)) {
+                is DocRef.Memory -> throw IllegalArgumentException("Source parent is not a directory: $sourceParentDocumentId")
+                else -> {}
+            }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "moveDocument: failed to parse sourceParentDocumentId=$sourceParentDocumentId", e)
+        }
+
         return try {
-            val source = parseDocumentId(sourceDocumentId)
-            val targetParent = parseDocumentId(targetParentDocumentId)
-
-            if (targetParent is DocRef.Root) {
-                throw IllegalArgumentException("Cannot move into root")
-            }
-            if (targetParent is DocRef.Memory) {
-                throw IllegalArgumentException("Target parent is not a directory: $targetParentDocumentId")
-            }
-
-            try {
-                when (parseDocumentId(sourceParentDocumentId)) {
-                    is DocRef.Memory -> throw IllegalArgumentException("Source parent is not a directory: $sourceParentDocumentId")
-                    else -> {
-                    }
-                }
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "moveDocument: failed to parse sourceParentDocumentId=$sourceParentDocumentId", e)
-            }
-
             when (source) {
                 is DocRef.Root -> throw IllegalArgumentException("Cannot move root")
                 is DocRef.Profile -> throw IllegalArgumentException("Cannot move profile")
@@ -476,6 +475,7 @@ class MemoryDocumentsProvider : DocumentsProvider() {
     }
 
     override fun deleteDocument(documentId: String) {
+        Log.d(TAG, "deleteDocument documentId=$documentId")
         AppLogger.d(TAG, "deleteDocument documentId=$documentId")
         when (val ref = parseDocumentId(documentId)) {
             is DocRef.Root -> throw IllegalArgumentException("Cannot delete root")
