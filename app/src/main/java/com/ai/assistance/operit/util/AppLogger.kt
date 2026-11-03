@@ -287,6 +287,11 @@ object AppLogger {
     // --- Internal helpers ---
 
     private fun writeToFile(priority: Int, tag: String, msg: String, tr: Throwable?) {
+        // 内存日志缓冲：独立于文件日志开关，供“运行日志”界面实时查看（不落盘）
+        try {
+            com.ai.assistance.operit.core.logging.InMemoryLogBuffer.add(priority, tag, msg, tr)
+        } catch (_: Throwable) {
+        }
         if (!enableFileLogging) return
         try {
             fileLogExecutor.execute {

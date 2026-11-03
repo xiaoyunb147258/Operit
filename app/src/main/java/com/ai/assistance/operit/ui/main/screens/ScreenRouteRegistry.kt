@@ -351,6 +351,39 @@ object ScreenRouteRegistry {
                 screen = Screen.Toolbox,
                 launchNavItem = NavItem.Toolbox
             ),
+            // ---- NeonEdgeX 新增：显示在工具箱下方 ----
+            hostEntryDefinition(
+                entryId = "main.agent_team",
+                screen = Screen.AgentTeam,
+                surface = NavigationSurface.MAIN_SIDEBAR_TOOLS,
+                launchNavItem = NavItem.AgentTeam,
+                icon = NavItem.AgentTeam.icon,
+                order = 40
+            ),
+            hostEntryDefinition(
+                entryId = "main.floating_ball",
+                screen = Screen.FloatingBall,
+                surface = NavigationSurface.MAIN_SIDEBAR_TOOLS,
+                launchNavItem = NavItem.FloatingBall,
+                icon = NavItem.FloatingBall.icon,
+                order = 50
+            ),
+            hostEntryDefinition(
+                entryId = "main.runtime_log",
+                screen = Screen.RuntimeLog,
+                surface = NavigationSurface.MAIN_SIDEBAR_TOOLS,
+                launchNavItem = NavItem.RuntimeLog,
+                icon = NavItem.RuntimeLog.icon,
+                order = 60
+            ),
+            hostEntryDefinition(
+                entryId = "main.mod_info",
+                screen = Screen.ModInfo,
+                surface = NavigationSurface.MAIN_SIDEBAR_TOOLS,
+                launchNavItem = NavItem.ModInfo,
+                icon = NavItem.ModInfo.icon,
+                order = 70
+            ),
             hostEntryDefinition(
                 entryId = "hidden.tool_permissions",
                 screen = Screen.ToolPermission,

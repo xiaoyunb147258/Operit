@@ -6,7 +6,7 @@ on:
       gradle_task:
         description: Gradle task to run
         required: true
-        default: assembleDebug
+        default: ':app:assembleClone'
         type: choice
         options:
           - assembleDebug
@@ -80,13 +80,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Initialize terminal submodule
+      - name: Verify vendored terminal sources
         shell: bash
         run: |
           set -euo pipefail
-          git submodule sync -- terminal
-          git submodule update --init --recursive --depth 1 terminal
-          git submodule status -- terminal
+          test -f terminal/build.gradle.kts
+          test -d termuxlib/termux-shared
+          echo "terminal + termuxlib sources are vendored in-repo"
 
       - name: Set up JDK
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5

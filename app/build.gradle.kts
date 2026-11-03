@@ -575,9 +575,55 @@ kotlin {
     }
 }
 
+// ============================================================
+// Termux 宿主配置注入
+// 在编译前把当前 variant 的真实 applicationId / appName / dataDir 写入
+// termuxlib 的 TermuxBuildConfig.java，使 clone 版自动落到独立目录。
+// ============================================================
+val termuxHostConfigFile = rootProject.file(
+    "termuxlib/termux-shared/src/main/java/com/termux/shared/termux/TermuxBuildConfig.java"
+)
+
+fun writeTermuxHostConfig(packageName: String, appName: String, dataDir: String) {
+    termuxHostConfigFile.parentFile.mkdirs()
+    termuxHostConfigFile.writeText(
+        """
+        |package com.termux.shared.termux;
+        |
+        |public final class TermuxBuildConfig {
+        |    private TermuxBuildConfig() {}
+        |    public static final String HOST_PACKAGE_NAME = "$packageName";
+        |    public static final String HOST_APP_NAME = "$appName";
+        |    public static final String HOST_DATA_DIR = "$dataDir";
+        |}
+        """.trimMargin()
+    )
+}
+
+androidComponents {
+    onVariants { variant ->
+        val appId = variant.applicationId.get()
+        val suffix = when (variant.buildType) {
+            "clone" -> " Clone"
+            "debug" -> " Debug"
+            else -> ""
+        }
+        writeTermuxHostConfig(
+            packageName = appId,
+            appName = "Operit Termux$suffix",
+            dataDir = "/data/data/$appId"
+        )
+    }
+}
+
 dependencies {
     implementation("com.github.jelmerk:hnswlib-core:1.2.1")
+    // A 模式：原生 proot Ubuntu 终端
     implementation(project(":terminal"))
+    // B 模式：Termux 终端内核
+    implementation(project(":termuxlib:termux-shared"))
+    implementation(project(":termuxlib:terminal-view"))
+    implementation(project(":termuxlib:terminal-emulator"))
     implementation(project(":showerclient"))
     implementation(project(":quickjs"))
 

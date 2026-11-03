@@ -8231,4 +8231,60 @@
     <string name="token_stats_detail_open">点击查看详细数据</string>
     <string name="markdown_link_not_openable">该链接指向文档内部的引用，无法打开</string>
 
+
+    <!-- ===== NeonEdgeX Mod 新增 ===== -->
+    <string name="nav_agent_team">智能体团队</string>
+    <string name="nav_floating_ball">悬浮球保护</string>
+    <string name="nav_runtime_log">运行日志</string>
+    <string name="nav_mod_info">关于改版</string>
+
+    <string name="agent_team_title">智能体团队</string>
+    <string name="agent_team_desc">多成员群聊协作，支持 @成员 与 @全体</string>
+    <string name="agent_team_empty">还没有团队空间，点右下角新建</string>
+    <string name="agent_team_new">新建团队</string>
+    <string name="agent_team_members">成员</string>
+    <string name="agent_team_add_member">添加成员</string>
+    <string name="agent_team_all">全体</string>
+    <string name="agent_team_mention_all">@全体</string>
+    <string name="agent_team_input_hint">发消息，@成员 定向发言，@全体 全员响应</string>
+    <string name="agent_team_round_limit">接力已达上限</string>
+
+    <string name="floating_ball_title">悬浮球保护</string>
+    <string name="floating_ball_desc">桌面悬浮应用图标，点击回到 App，可随时拖动与缩放，用于后台保活</string>
+    <string name="floating_ball_enable">开启悬浮球</string>
+    <string name="floating_ball_permission_needed">需要悬浮窗权限，请先在系统设置中授权</string>
+    <string name="floating_ball_size">图标大小</string>
+    <string name="floating_ball_keep_alive">后台保活</string>
+    <string name="floating_ball_keep_alive_desc">持有前台服务，降低被系统回收概率</string>
+
+    <string name="runtime_log_title">运行日志</string>
+    <string name="runtime_log_only_error">仅错误日志</string>
+    <string name="runtime_log_all">全部日志</string>
+    <string name="runtime_log_empty">暂无日志</string>
+    <string name="runtime_log_clear">清空</string>
+    <string name="runtime_log_copy">复制</string>
+    <string name="runtime_log_in_memory">仅内存，不写入本地</string>
+
+    <string name="mod_info_title">关于本改版</string>
+    <string name="mod_info_subtitle">NeonEdgeX 改版 · 终端增强版</string>
+    <string name="mod_info_contact_title">联系方式</string>
+    <string name="mod_info_qq_group">QQ 群</string>
+    <string name="mod_info_qq_group_value">1107158432</string>
+    <string name="mod_info_telegram">纸飞机频道</string>
+    <string name="mod_info_telegram_value">@NeonEdgeX</string>
+    <string name="mod_info_copy">复制</string>
+    <string name="mod_info_copied">已复制</string>
+    <string name="mod_info_version">版本</string>
+    <string name="mod_info_features">本次改版特性</string>
+    <string name="mod_info_feat_terminal">A/B 双终端：原生 Ubuntu + Termux 自由切换</string>
+    <string name="mod_info_feat_team">智能体团队：多 AI 群聊协作</string>
+    <string name="mod_info_feat_overlay">悬浮球：后台保活不掉线</string>
+    <string name="mod_info_feat_log">运行日志：错误实时可见</string>
+    <string name="mod_info_feat_clone">共存包：可与原版同时安装</string>
+
+    <!-- A/B 终端切换 -->
+    <string name="terminal_mode_native">原生 Ubuntu 终端</string>
+    <string name="terminal_mode_termux">Termux 终端</string>
+    <string name="terminal_mode_switch">切换终端模式</string>
+    <string name="terminal_mode_current">当前：%1$s</string>
 </resources>

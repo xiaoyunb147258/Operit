@@ -16,6 +16,10 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Token
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Adjust
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.ai.assistance.operit.R
 
@@ -46,4 +50,12 @@ sealed class NavItem(val route: String, val titleResId: Int, val icon: ImageVect
         object Help : NavItem("help", R.string.nav_help, Icons.AutoMirrored.Filled.Help)
         object TokenConfig : NavItem("token_config", R.string.token_config, Icons.Default.Token)
         object Workflow : NavItem("workflow", R.string.nav_workflow, Icons.Default.AccountTree)
+        object AgentTeam :
+                NavItem("agent_team", R.string.nav_agent_team, Icons.Default.Groups)
+        object FloatingBall :
+                NavItem("floating_ball", R.string.nav_floating_ball, Icons.Default.Adjust)
+        object RuntimeLog :
+                NavItem("runtime_log", R.string.nav_runtime_log, Icons.Default.BugReport)
+        object ModInfo :
+                NavItem("mod_info", R.string.nav_mod_info, Icons.Default.Favorite)
 }

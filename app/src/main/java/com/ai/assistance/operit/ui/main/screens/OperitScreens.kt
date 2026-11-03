@@ -73,6 +73,10 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.ShellExecutorToolScr
 import com.ai.assistance.operit.ui.features.toolbox.screens.StreamMarkdownDemoScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
+import com.ai.assistance.operit.ui.features.team.AgentTeamScreen
+import com.ai.assistance.operit.ui.features.overlay.FloatingBallSettingsScreen
+import com.ai.assistance.operit.ui.features.logs.RuntimeLogScreen
+import com.ai.assistance.operit.ui.features.modinfo.ModInfoScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
 import com.ai.assistance.operit.ui.common.composedsl.ToolPkgComposeDslToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
@@ -720,6 +724,66 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             AssistantConfigScreen()
+        }
+    }
+
+    data object AgentTeam : Screen(navItem = NavItem.AgentTeam) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            AgentTeamScreen()
+        }
+    }
+
+    data object FloatingBall : Screen(navItem = NavItem.FloatingBall) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            FloatingBallSettingsScreen()
+        }
+    }
+
+    data object RuntimeLog : Screen(navItem = NavItem.RuntimeLog) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            RuntimeLogScreen()
+        }
+    }
+
+    data object ModInfo : Screen(navItem = NavItem.ModInfo) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            ModInfoScreen()
         }
     }
 
