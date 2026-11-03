@@ -61,8 +61,8 @@ class FloatingBallView(
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val newSize = (sizePx * detector.scaleFactor).roundToInt()
                     .coerceIn(
-                        (FloatingBallConfig.MIN_SIZE_DP * density).roundToInt(),
-                        (FloatingBallConfig.MAX_SIZE_DP * density).roundToInt()
+                        (FloatingBallConfig.MIN_SIZE_DP * resources.displayMetrics.density).roundToInt(),
+                        (FloatingBallConfig.MAX_SIZE_DP * resources.displayMetrics.density).roundToInt()
                     )
                 if (newSize != sizePx) {
                     sizePx = newSize
@@ -150,7 +150,7 @@ class FloatingBallView(
     private fun snapToEdge() {
         val metrics = context.resources.displayMetrics
         val screenW = metrics.widthPixels
-        val margin = (8 * density).roundToInt()
+        val margin = (8 * resources.displayMetrics.density).roundToInt()
         val targetX = if (params.x + sizePx / 2 < screenW / 2) {
             margin
         } else {
