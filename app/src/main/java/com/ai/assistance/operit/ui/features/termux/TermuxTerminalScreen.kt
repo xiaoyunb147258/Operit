@@ -177,13 +177,23 @@ private class TermuxViewClient(
     private val context: Context,
     private val view: TerminalView
 ) : TerminalViewClient {
+
     override fun onScale(scale: Float): Float = scale
-    override fun onSingleTapUp(e: MotionEvent) { view.requestFocus() }
+
+    override fun onSingleTapUp(e: MotionEvent) {
+        view.requestFocus()
+    }
+
     override fun shouldBackButtonBeMappedToEscape(): Boolean = false
-    override fun shouldEnforceCharBasedInput(): Boolean = false
+
+    override fun shouldEnforceCharBasedInput(): Boolean = true
+
     override fun shouldUseCtrlSpaceWorkaround(): Boolean = false
+
     override fun isTerminalViewSelected(): Boolean = true
+
     override fun copyModeChanged(copyMode: Boolean) {}
+
     override fun onKeyDown(keyCode: Int, e: KeyEvent, session: TerminalSession): Boolean {
         if (keyCode == KeyEvent.KEYCODE_ENTER && !e.isShiftPressed) {
             session.write("\r")
@@ -195,38 +205,72 @@ private class TermuxViewClient(
         }
         return false
     }
+
     override fun onKeyUp(keyCode: Int, e: KeyEvent): Boolean = false
-    override fun onLongPress(e: MotionEvent) {}
-    override fun readControlSequenceFromTerminal(session: TerminalSession): Boolean = false
-    override fun setTerminalCursorBlinkEnabled(session: TerminalSession, enabled: Boolean) {}
-    override fun shouldShowTerminalCursor(session: TerminalSession): Boolean = true
+
+    override fun onLongPress(event: MotionEvent): Boolean = false
+
+    override fun readControlKey(): Boolean = false
+
+    override fun readAltKey(): Boolean = false
+
+    override fun readShiftKey(): Boolean = false
+
+    override fun readFnKey(): Boolean = false
+
+    override fun onCodePoint(codePoint: Int, ctrlDown: Boolean, session: TerminalSession): Boolean = false
+
     override fun onEmulatorSet() {}
+
     override fun logError(tag: String?, message: String?) {}
+
     override fun logWarn(tag: String?, message: String?) {}
+
     override fun logInfo(tag: String?, message: String?) {}
+
     override fun logDebug(tag: String?, message: String?) {}
+
     override fun logVerbose(tag: String?, message: String?) {}
+
     override fun logStackTraceWithMessage(tag: String?, message: String?, e: Exception?) {}
+
     override fun logStackTrace(tag: String?, e: Exception?) {}
 }
 
 /** TerminalSessionClient 实现 */
 internal class TermuxSessionClient : TerminalSessionClient {
+
     override fun onTextChanged(changedSession: TerminalSession) {}
+
     override fun onTitleChanged(changedSession: TerminalSession) {}
+
     override fun onSessionFinished(finishedSession: TerminalSession) {}
+
     override fun onCopyTextToClipboard(session: TerminalSession, text: String) {}
+
     override fun onPasteTextFromClipboard(session: TerminalSession?) {}
+
     override fun onBell(session: TerminalSession) {}
+
     override fun onColorsChanged(session: TerminalSession) {}
+
     override fun onTerminalCursorStateChange(state: Boolean) {}
+
     override fun setTerminalShellPid(session: TerminalSession, pid: Int) {}
-    override fun getTerminalCursorStyle(): Int = 0
+
+    override fun getTerminalCursorStyle(): Int? = null
+
     override fun logError(tag: String?, message: String?) {}
+
     override fun logWarn(tag: String?, message: String?) {}
+
     override fun logInfo(tag: String?, message: String?) {}
+
     override fun logDebug(tag: String?, message: String?) {}
+
     override fun logVerbose(tag: String?, message: String?) {}
+
     override fun logStackTraceWithMessage(tag: String?, message: String?, e: Exception?) {}
+
     override fun logStackTrace(tag: String?, e: Exception?) {}
 }
