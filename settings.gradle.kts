@@ -16,7 +16,7 @@ dependencyResolutionManagement {
         maven { url = uri("https://api.xposed.info/") }
         maven { url = uri("https://oss.sonatype.org/content/repositories/snapshots") }
         // ffmpeg-kit-local.aar 等本地 aar
-        flatDir { dirs(rootProject.file("app/libs")) }
+        flatDir { dirs(file("app/libs")) }
     }
 }
 

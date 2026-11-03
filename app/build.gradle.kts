@@ -600,6 +600,7 @@ fun writeTermuxHostConfig(packageName: String, appName: String, dataDir: String)
     )
 }
 
+// 每个 variant 编译前，把真实 applicationId 写入 termuxlib 的 TermuxBuildConfig
 androidComponents {
     onVariants { variant ->
         val appId = variant.applicationId.get()
@@ -608,11 +609,18 @@ androidComponents {
             "debug" -> " Debug"
             else -> ""
         }
-        writeTermuxHostConfig(
-            packageName = appId,
-            appName = "Operit Termux$suffix",
-            dataDir = "/data/data/$appId"
-        )
+        val taskName = "writeTermuxHostConfig${variant.name.replaceFirstChar { it.uppercase() }}"
+        val task = tasks.register(taskName) {
+            doLast {
+                writeTermuxHostConfig(
+                    packageName = appId,
+                    appName = "Operit Termux$suffix",
+                    dataDir = "/data/data/$appId"
+                )
+            }
+        }
+        tasks.matching { it.name == "pre${variant.name.replaceFirstChar { it.uppercase() }}Build" }
+            .configureEach { dependsOn(task) }
     }
 }
 
