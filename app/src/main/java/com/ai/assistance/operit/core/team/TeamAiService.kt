@@ -7,7 +7,6 @@ import com.ai.assistance.operit.core.chat.hooks.PromptTurnKind
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.util.AppLogger
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
@@ -20,7 +19,7 @@ object TeamAiService {
 
     private const val TAG = "TeamAiService"
 
-    private const val DESIGNER_PROMPT = """
+    private val DESIGNER_PROMPT = """
 你是一个多智能体团队的架构师。用户会给你一个目标，你需要设计一个能协作完成该目标的 AI 团队。
 
 要求：
@@ -134,14 +133,17 @@ object TeamAiService {
             )
         )
 
-        val chunks = service.sendMessage(
+        val builder = StringBuilder()
+        service.sendMessage(
             context = context,
             chatHistory = history,
             stream = false,
             recordTokenUsage = false
-        ).toList()
+        ).collect { chunk ->
+            builder.append(chunk)
+        }
 
-        return chunks.joinToString("").trim()
+        return builder.toString().trim()
     }
 
     /**
